@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Dashboard</h1>
+  <p class="page-subtitle">
+    Base UI prête. Les fonctionnalités seront ajoutées étape par étape (années, sessions, examens, salles, inscriptions, suivi, exports).
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <h2 class="card__title">Année universitaire</h2>
+      <p class="card__meta">Sélection + gestion (à l’étape 2).</p>
+      <a class="btn btn--outline" href="#">Bientôt</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Sessions d’examens</h2>
+      <p class="card__meta">Création / suppression, rattachée à l’année (étape 4).</p>
+      <a class="btn btn--outline" href="#">Bientôt</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Examens</h2>
+      <p class="card__meta">Création INITIÉ, statuts, règles (étapes 5–8).</p>
+      <a class="btn btn--primary" href="#">Bientôt</a>
+    </div>
+  </div>
+{% endblock %}

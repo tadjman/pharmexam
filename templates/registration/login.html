@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Connexion — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Connexion</h1>
+  <p class="page-subtitle">Connecte-toi pour accéder aux fonctionnalités.</p>
+
+  <div class="card" style="max-width: 520px;">
+    <form method="post">
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+
+      <div style="margin-bottom: 16px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Nom d’utilisateur</label>
+        {{ form.username }}
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Mot de passe</label>
+        {{ form.password }}
+      </div>
+
+      <button class="btn btn--primary" type="submit">Se connecter</button>
+    </form>
+  </div>
+{% endblock %}

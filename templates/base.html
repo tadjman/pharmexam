@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pharmexam{% endblock %}</title>
+
+  <!-- Poppins -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{% static 'css/pharmatools.css' %}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="header">
+    <div class="container header__inner">
+      <div class="brand">
+        <div class="brand__title">Pharmexam</div>
+        <div class="brand__subtitle">Organisation des surveillances d'examens</div>
+      </div>
+      {% include "includes/nav.html" %}
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      {% include "includes/messages.html" %}
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div style="font-weight:600;">PharmaTools</div>
+      <div style="opacity:.9;">© {% now "Y" %} — Pharmexam</div>
+    </div>
+  </footer>
+</body>
+</html>
