@@ -5,23 +5,29 @@
   {% if user.is_authenticated %}
 
     {% if user.role == "SCOLARITE" %}
-      <a class="nav__item" href="#">Années</a>
-      <a class="nav__item" href="#">Sessions</a>
-      <a class="nav__item" href="#">Examens</a>
+      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
+      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
+      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
       <a class="nav__item" href="#">Salles</a>
       <a class="nav__item" href="#">Exports</a>
     {% endif %}
 
     {% if user.role == "ENSEIGNANT" %}
-      <a class="nav__item" href="#">Examens</a>
-      <a class="nav__item" href="#">Suivi</a>
+      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
+      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
+      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
+      <a class="nav__item" href="#">Salles</a>
+      <a class="nav__item" href="#">Exports</a>
     {% endif %}
 
     {% if user.role == "MEMBRE_POOL" %}
-      <a class="nav__item" href="#">Inscriptions</a>
-      <a class="nav__item" href="#">Mon suivi</a>
+      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
+      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
+      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
+      <a class="nav__item" href="#">Salles</a>
+      <a class="nav__item" href="#">Exports</a>
     {% endif %}
-    
+
     <a class="nav__item" href="/admin/">Admin</a>
     <form method="post" action="{% url 'logout' %}" style="display:inline;">
         {% csrf_token %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Sessions — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Sessions d’examens</h1>
+      <p class="page-subtitle">
+        {% if active_year %}
+          Année active : <strong>{{ active_year.nom }}</strong>
+        {% else %}
+          Aucune année active sélectionnée.
+        {% endif %}
+      </p>
+    </div>
+
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <a class="btn btn--primary" href="{% url 'exams:session_create' %}">Nouvelle session</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if sessions %}
+      <div style="display:grid; gap:16px;">
+        {% for s in sessions %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ s.nom }}</div>
+              <div class="card__meta">Du {{ s.date_debut }} au {{ s.date_fin }}</div>
+            </div>
+
+            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn btn--outline" href="{% url 'exams:session_update' s.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'exams:session_delete' s.pk %}">Supprimer</a>
+              </div>
+            {% endif %}
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune session pour cette année.</p>
+    {% endif %}
+  </div>
+{% endblock %}

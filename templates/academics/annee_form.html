@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Année universitaire — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Année universitaire</h1>
+  <p class="page-subtitle">Choisis les dates : le nom se génère automatiquement.</p>
+
+  <div class="card" style="max-width:720px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="flash flash--error">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <div style="display:grid; gap:16px;">
+
+        <!-- NOM (auto) -->
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;" for="id_nom">Nom</label>
+          <input
+            class="input"
+            type="text"
+            id="id_nom"
+            name="nom"
+            placeholder="Ex: 2024/2025"
+            value="{{ form.nom.value|default_if_none:'' }}"
+            autocomplete="off"
+          >
+          {% if form.nom.errors %}
+            <div style="margin-top:8px; color: var(--error); font-size:14px;">
+              {{ form.nom.errors }}
+            </div>
+          {% endif %}
+          <div style="margin-top:8px; color: var(--text-secondary); font-size:14px;">
+            Généré automatiquement à partir des dates (modifiable si besoin).
+          </div>
+        </div>
+
+        <!-- DATES (calendar) -->
+        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;" for="id_date_debut">Date début</label>
+            <input
+              class="input"
+              type="date"
+              id="id_date_debut"
+              name="date_debut"
+              value="{{ form.date_debut.value|default_if_none:'' }}"
+              required
+            >
+            {% if form.date_debut.errors %}
+              <div style="margin-top:8px; color: var(--error); font-size:14px;">
+                {{ form.date_debut.errors }}
+              </div>
+            {% endif %}
+          </div>
+
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;" for="id_date_fin">Date fin</label>
+            <input
+              class="input"
+              type="date"
+              id="id_date_fin"
+              name="date_fin"
+              value="{{ form.date_fin.value|default_if_none:'' }}"
+              required
+            >
+            {% if form.date_fin.errors %}
+              <div style="margin-top:8px; color: var(--error); font-size:14px;">
+                {{ form.date_fin.errors }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- ACTIVE -->
+        <label style="display:flex; align-items:center; gap:10px;">
+          {{ form.is_active }}
+          <span style="color:var(--text-secondary);">Définir comme active</span>
+        </label>
+        {% if form.is_active.errors %}
+          <div style="margin-top:-8px; color: var(--error); font-size:14px;">
+            {{ form.is_active.errors }}
+          </div>
+        {% endif %}
+
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Enregistrer</button>
+        <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    (function () {
+      const nameInput = document.getElementById("id_nom");
+      const startInput = document.getElementById("id_date_debut");
+      const endInput = document.getElementById("id_date_fin");
+
+      // Si l'utilisateur tape le nom, on n'écrase plus.
+      let nameManuallyEdited = false;
+
+      nameInput.addEventListener("input", () => {
+        // Si l'utilisateur modifie, on considère que c'est volontaire (sauf si vide)
+        nameManuallyEdited = nameInput.value.trim().length > 0;
+      });
+
+      function yearFromDateValue(v) {
+        // v attendu: "YYYY-MM-DD"
+        if (!v || v.length < 4) return "";
+        return v.slice(0, 4);
+      }
+
+      function autoFillNameIfAllowed() {
+        const y1 = yearFromDateValue(startInput.value);
+        const y2 = yearFromDateValue(endInput.value);
+
+        if (y1 && y2) {
+          const autoName = `${y1}/${y2}`;
+          // Remplir si vide ou pas édité manuellement
+          if (!nameInput.value.trim() || !nameManuallyEdited) {
+            nameInput.value = autoName;
+            nameManuallyEdited = false; // on garde l'auto tant que l'utilisateur n'écrit pas autre chose
+          }
+        }
+      }
+
+      startInput.addEventListener("change", autoFillNameIfAllowed);
+      endInput.addEventListener("change", autoFillNameIfAllowed);
+
+      // Au chargement : si dates déjà présentes, génère le nom si vide
+      if (!nameInput.value.trim()) {
+        autoFillNameIfAllowed();
+      }
+    })();
+  </script>
+{% endblock %}

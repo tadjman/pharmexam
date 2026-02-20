@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Examens — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Examens</h1>
+      <p class="page-subtitle">
+        {% if active_year %}
+          Année active : <strong>{{ active_year.nom }}</strong>
+        {% else %}
+          Aucune année active.
+        {% endif %}
+      </p>
+    </div>
+
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <a class="btn btn--primary" href="{% url 'exams:exam_create' %}">Nouvel examen</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
+        <select name="session" class="input">
+          <option value="">Toutes</option>
+          {% for s in sessions %}
+            <option value="{{ s.pk }}" {% if selected_session == s.pk|stringformat:"s" %}selected{% endif %}>
+              {{ s.nom }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:220px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Statut</label>
+        <select name="statut" class="input">
+          <option value="">Tous</option>
+          {% for value,label in statuts %}
+            <option value="{{ value }}" {% if selected_statut == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button class="btn btn--outline" type="submit">Filtrer</button>
+      <a class="btn btn--ghost" href="{% url 'exams:exam_list' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <div style="margin-top:16px;" class="card">
+    {% if examens %}
+      <div style="display:grid; gap:16px;">
+        {% for e in examens %}
+          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
+            <div>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <a href="{% url 'exams:exam_detail' e.pk %}" style="font-weight:600; font-size:16px;">
+                  {{ e.nom }}
+                </a>
+
+                {% if e.statut == "COMPLET" %}
+                  <span class="badge badge--success">COMPLET</span>
+                {% elif e.statut == "INCOMPLET" %}
+                  <span class="badge badge--warning">INCOMPLET</span>
+                {% elif e.statut == "TERMINE" %}
+                  <span class="badge badge--info">TERMINÉ</span>
+                {% else %}
+                  <span class="badge">INITIÉ</span>
+                {% endif %}
+              </div>
+
+              <div class="card__meta">
+                {{ e.session.nom }} — {{ e.up.ue.nom }} / {{ e.up.nom }} — Responsable : {{ e.responsable.username }}
+              </div>
+              <div class="card__meta">
+                {{ e.date }} · {{ e.heure_debut }} → {{ e.heure_fin }} · {{ e.nb_eleves }} élèves ({{ e.nb_eleves_tiers_temps }} tiers-temps) · {{ e.nb_surveillants_requis }} surveillants requis
+              </div>
+            </div>
+
+            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn btn--outline" href="{% url 'exams:exam_update' e.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'exams:exam_delete' e.pk %}">Supprimer</a>
+              </div>
+            {% endif %}
+          </div>
+
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucun examen pour les filtres actuels.</p>
+    {% endif %}
+  </div>
+{% endblock %}

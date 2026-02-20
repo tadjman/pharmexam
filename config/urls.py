@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.urls import include
 from django.contrib.auth.decorators import login_required
 from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -42,6 +44,10 @@ urlpatterns = [
         auth_views.LogoutView.as_view(),
         name="logout",
     ),
+
+    path("", include("academics.urls")),
+
+    path("", include("exams.urls")),
 ]
 
 

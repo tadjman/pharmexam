@@ -20,6 +20,15 @@
       <div class="brand">
         <div class="brand__title">Pharmexam</div>
         <div class="brand__subtitle">Organisation des surveillances d'examens</div>
+        {% if user.is_authenticated %}
+            <div style="margin-top:8px;">
+                {% if active_year %}
+                    <span class="badge badge--info">Année active : {{ active_year.nom }}</span>
+                {% else %}
+                    <span class="badge badge--warning">Aucune année active</span>
+                {% endif %}
+            </div>
+        {% endif %}
       </div>
       {% include "includes/nav.html" %}
     </div>

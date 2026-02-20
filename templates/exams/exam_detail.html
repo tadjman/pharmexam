@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{{ examen.nom }} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">{{ examen.nom }}</h1>
+      <p class="page-subtitle">{{ examen.session.nom }} — {{ examen.up.ue.nom }} / {{ examen.up.nom }}</p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn--outline" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
+        <a class="btn btn--ghost" href="{% url 'exams:exam_delete' examen.pk %}">Supprimer</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Informations</h2>
+      <p class="card__meta"><strong>Date :</strong> {{ examen.date }}</p>
+      <p class="card__meta"><strong>Créneau :</strong> {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
+      <p class="card__meta"><strong>Responsable :</strong> {{ examen.responsable.username }}</p>
+      <p class="card__meta"><strong>Statut :</strong> {{ examen.statut }}</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Candidats</h2>
+      <p class="card__meta"><strong>Total :</strong> {{ examen.nb_eleves }}</p>
+      <p class="card__meta"><strong>Tiers-temps :</strong> {{ examen.nb_eleves_tiers_temps }}</p>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Surveillance</h2>
+      <p class="card__meta"><strong>Surveillants requis :</strong> {{ examen.nb_surveillants_requis }}</p>
+      <p class="card__meta" style="color:var(--text-secondary);">
+        Les inscriptions + contrôles (disponibilité/quota) arrivent à l’étape suivante.
+      </p>
+    </div>
+  </div>
+{% endblock %}

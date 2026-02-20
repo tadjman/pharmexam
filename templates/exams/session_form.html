@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Session — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Session d’examens</h1>
+  <p class="page-subtitle">Crée ou modifie une session rattachée à l’année active.</p>
+
+  <div class="card" style="max-width:720px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="flash flash--error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div style="display:grid; gap:16px;">
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+          {{ form.nom }}
+          {% if form.nom.errors %}
+            <div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.nom.errors }}</div>
+          {% endif %}
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Date début</label>
+            <input class="input" type="date" name="date_debut" id="id_date_debut"
+                   value="{{ form.date_debut.value|default_if_none:'' }}" required>
+            {% if form.date_debut.errors %}
+              <div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.date_debut.errors }}</div>
+            {% endif %}
+          </div>
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Date fin</label>
+            <input class="input" type="date" name="date_fin" id="id_date_fin"
+                   value="{{ form.date_fin.value|default_if_none:'' }}" required>
+            {% if form.date_fin.errors %}
+              <div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.date_fin.errors }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Enregistrer</button>
+        <a class="btn btn--outline" href="{% url 'exams:session_list' %}">Retour</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // style input auto-render (nom)
+    document.querySelectorAll("input[type=text], select, textarea").forEach(el => el.classList.add("input"));
+  </script>
+{% endblock %}

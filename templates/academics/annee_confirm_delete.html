@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Supprimer — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Supprimer l’année</h1>
+  <p class="page-subtitle">Cette action est irréversible.</p>
+
+  <div class="card" style="max-width:720px;">
+    <p style="margin-top:0;">
+      Confirmer la suppression de : <strong>{{ object.nom }}</strong>
+    </p>
+
+    <form method="post">
+      {% csrf_token %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Supprimer</button>
+        <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Annuler</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

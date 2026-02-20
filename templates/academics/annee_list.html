@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Années universitaires — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Années universitaires</h1>
+      <p class="page-subtitle">Gère les années et définis l’année active.</p>
+    </div>
+
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">Nouvelle année</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if annees %}
+      <div style="display:grid; gap:16px;">
+        {% for a in annees %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                <div style="font-weight:600; font-size:16px;">{{ a.nom }}</div>
+                {% if a.is_active %}
+                  <span class="badge badge--success">Active</span>
+                {% endif %}
+              </div>
+              <div class="card__meta">Du {{ a.date_debut }} au {{ a.date_fin }}</div>
+            </div>
+
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                <a class="btn btn--outline" href="{% url 'academics:annee_update' a.pk %}">Modifier</a>
+
+                <form method="post" action="{% url 'academics:annee_set_active' a.pk %}">
+                  {% csrf_token %}
+                  <button class="btn btn--primary" type="submit" {% if a.is_active %}disabled style="opacity:.6; cursor:not-allowed;"{% endif %}>
+                    Définir active
+                  </button>
+                </form>
+
+                <a class="btn btn--ghost" href="{% url 'academics:annee_delete' a.pk %}">Supprimer</a>
+              {% endif %}
+            </div>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune année créée pour le moment.</p>
+    {% endif %}
+  </div>
+{% endblock %}
