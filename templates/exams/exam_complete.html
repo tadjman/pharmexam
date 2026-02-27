@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Compléter {{ examen.nom }} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Compléter l'examen</h1>
+      <p class="page-subtitle">{{ examen.nom }} — {{ examen.session.nom }} — {{ examen.date }} · {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
+    </div>
+    <a class="btn btn--outline" href="{% url 'exams:exam_detail' examen.pk %}">Retour examen</a>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 class="card__title">Contrôles</h2>
+    <p class="card__meta">
+      Capacité salles : <strong>{{ metrics.total_capacity }}</strong> / {{ metrics.required_capacity }}
+      {% if metrics.capacity_ok %}<span class="badge badge--success" style="margin-left:8px;">OK</span>{% else %}<span class="badge badge--warning" style="margin-left:8px;">Insuffisante</span>{% endif %}
+    </p>
+    <p class="card__meta">
+      Salle tiers-temps :
+      {% if metrics.tiers_required %}
+        {% if metrics.tiers_ok %}<span class="badge badge--success">OK</span>{% else %}<span class="badge badge--warning">Manquante</span>{% endif %}
+      {% else %}
+        <span class="badge">Non requise</span>
+      {% endif %}
+    </p>
+    <p class="card__meta">
+      Surveillants : <strong>{{ metrics.surveillants_count }}</strong> / {{ metrics.surveillants_required }}
+      {% if metrics.surveillants_ok %}<span class="badge badge--success" style="margin-left:8px;">OK</span>{% else %}<span class="badge badge--warning" style="margin-left:8px;">Incomplet</span>{% endif %}
+    </p>
+    {% if not metrics.capacity_ok or not metrics.surveillants_ok or not metrics.tiers_ok %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+        {% if metrics.missing_capacity > 0 %}
+          <span class="badge badge--warning">Capacité manquante: {{ metrics.missing_capacity }} places</span>
+        {% endif %}
+        {% if metrics.missing_surveillants > 0 %}
+          <span class="badge badge--warning">+{{ metrics.missing_surveillants }} surveillant{% if metrics.missing_surveillants > 1 %}s{% endif %} requis</span>
+        {% endif %}
+        {% if metrics.missing_tiers_room > 0 %}
+          <span class="badge badge--warning">+1 salle tiers-temps requise</span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Affecter une salle</h2>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_room">
+
+        {% if room_form.non_field_errors %}
+          <div class="flash flash--error">{{ room_form.non_field_errors }}</div>
+        {% endif %}
+
+        <div style="display:grid; gap:12px;">
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Salle</label>
+            {{ room_form.salle }}
+            {% if room_form.salle.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ room_form.salle.errors }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="display:flex; gap:8px; align-items:center;">
+              {{ room_form.is_tiers_temps }}
+              <span>Salle tiers-temps</span>
+            </label>
+            {% if room_form.is_tiers_temps.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ room_form.is_tiers_temps.errors }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité réservée (optionnel)</label>
+            {{ room_form.capacite_reservee }}
+            {% if room_form.capacite_reservee.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ room_form.capacite_reservee.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <button class="btn btn--primary" type="submit" style="margin-top:16px;">Ajouter salle</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Inscrire un surveillant</h2>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_surveillance">
+
+        {% if surveillance_form.non_field_errors %}
+          <div class="flash flash--error">{{ surveillance_form.non_field_errors }}</div>
+        {% endif %}
+
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Surveillant</label>
+          {{ surveillance_form.surveillant }}
+          {% if surveillance_form.surveillant.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ surveillance_form.surveillant.errors }}</div>{% endif %}
+        </div>
+
+        <button class="btn btn--primary" type="submit" style="margin-top:16px;">Ajouter surveillant</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Salles affectées</h2>
+      {% if examen.affectations_salles.all %}
+        <div style="display:grid; gap:12px;">
+          {% for a in examen.affectations_salles.all %}
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+              <div class="card__meta">
+                {{ a.salle.nom }} — capacité {{ a.capacite_effective }}{% if a.is_tiers_temps %} · tiers-temps{% endif %}
+              </div>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_room">
+                <input type="hidden" name="room_id" value="{{ a.pk }}">
+                <button class="btn btn--ghost" type="submit">Supprimer</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="card__meta">Aucune salle affectée.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Surveillants inscrits</h2>
+      {% if examen.surveillances.all %}
+        <div style="display:grid; gap:12px;">
+          {% for s in examen.surveillances.all %}
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+              <div class="card__meta">{{ s.surveillant.username }}</div>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_surveillance">
+                <input type="hidden" name="surveillance_id" value="{{ s.pk }}">
+                <button class="btn btn--ghost" type="submit">Supprimer</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="card__meta">Aucun surveillant inscrit.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

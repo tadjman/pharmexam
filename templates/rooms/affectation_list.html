@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Affectation Salles — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Affectation des salles</h1>
+      <p class="page-subtitle">
+        {{ examen.nom }} — {{ examen.date }} · {{ examen.heure_debut }} → {{ examen.heure_fin }}
+      </p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn--outline" href="{% url 'exams:exam_detail' examen.pk %}">Retour examen</a>
+        <a class="btn btn--primary" href="{% url 'rooms:affectation_create' examen.pk %}">Nouvelle affectation</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 class="card__title">Contrôles</h2>
+    <p class="card__meta">
+      Capacité totale: <strong>{{ metrics.total_capacity }}</strong> / {{ metrics.required_capacity }}
+      {% if metrics.capacity_ok %}
+        <span class="badge badge--success" style="margin-left:8px;">OK</span>
+      {% else %}
+        <span class="badge badge--warning" style="margin-left:8px;">Insuffisante</span>
+      {% endif %}
+    </p>
+    <p class="card__meta">
+      Salle tiers-temps:
+      {% if metrics.tiers_required %}
+        {% if metrics.tiers_ok %}
+          <span class="badge badge--success">OK</span>
+        {% else %}
+          <span class="badge badge--warning">Obligatoire manquante</span>
+        {% endif %}
+      {% else %}
+        <span class="badge">Non requise</span>
+      {% endif %}
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if affectations %}
+      <div style="display:grid; gap:16px;">
+        {% for a in affectations %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <div style="font-weight:600; font-size:16px;">{{ a.salle.nom }}</div>
+                {% if a.is_tiers_temps %}
+                  <span class="badge badge--info">Tiers-temps</span>
+                {% endif %}
+              </div>
+              <div class="card__meta">
+                Capacité utilisée: {{ a.capacite_effective }}
+                {% if a.capacite_reservee %}
+                  (réservée)
+                {% else %}
+                  (max salle)
+                {% endif %}
+              </div>
+            </div>
+
+            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn btn--outline" href="{% url 'rooms:affectation_update' examen.pk a.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'rooms:affectation_delete' examen.pk a.pk %}">Supprimer</a>
+              </div>
+            {% endif %}
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune salle affectée pour cet examen.</p>
+    {% endif %}
+  </div>
+{% endblock %}

@@ -48,6 +48,8 @@ urlpatterns = [
     path("", include("academics.urls")),
 
     path("", include("exams.urls")),
+
+    path("", include("rooms.urls")),
+
+    path("", include("assignments.urls")),
 ]
-
-

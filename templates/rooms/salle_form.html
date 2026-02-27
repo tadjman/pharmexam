@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Salle — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Salle</h1>
+  <p class="page-subtitle">Création/édition d'une salle.</p>
+
+  <div class="card" style="max-width:720px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="flash flash--error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div style="display:grid; gap:16px;">
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+          {{ form.nom }}
+          {% if form.nom.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité maximale</label>
+          {{ form.capacite_max }}
+          {% if form.capacite_max.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.capacite_max.errors }}</div>{% endif %}
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Heure de déverrouillage (optionnel)</label>
+            {{ form.heure_deverrouillage }}
+            {% if form.heure_deverrouillage.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.heure_deverrouillage.errors }}</div>{% endif %}
+          </div>
+          <div>
+            <label style="font-weight:500; display:block; margin-bottom:8px;">Heure de verrouillage (optionnel)</label>
+            {{ form.heure_verrouillage }}
+            {% if form.heure_verrouillage.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.heure_verrouillage.errors }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Enregistrer</button>
+        <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Retour</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

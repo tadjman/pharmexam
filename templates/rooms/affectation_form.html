@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Affectation Salle — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Affectation de salle</h1>
+  <p class="page-subtitle">{{ examen.nom }} — {{ examen.date }} · {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
+
+  <div class="card" style="max-width:720px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="flash flash--error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div style="display:grid; gap:16px;">
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Salle</label>
+          {{ form.salle }}
+          {% if form.salle.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.salle.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label style="display:flex; gap:8px; align-items:center;">
+            {{ form.is_tiers_temps }}
+            <span>Salle tiers-temps</span>
+          </label>
+          {% if form.is_tiers_temps.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.is_tiers_temps.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité réservée (optionnel)</label>
+          {{ form.capacite_reservee }}
+          {% if form.capacite_reservee.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.capacite_reservee.errors }}</div>{% endif %}
+          <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">
+            Si vide, la capacité maximale de la salle est utilisée.
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Enregistrer</button>
+        <a class="btn btn--outline" href="{% url 'rooms:affectation_list' examen.pk %}">Retour</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

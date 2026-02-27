@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Supprimer Affectation — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Supprimer l'affectation</h1>
+  <p class="page-subtitle">{{ examen.nom }}</p>
+
+  <div class="card" style="max-width:720px;">
+    <p style="margin-top:0;">Confirmer la suppression de la salle <strong>{{ object.salle.nom }}</strong> pour cet examen ?</p>
+    <p class="card__meta">
+      Capacité utilisée: {{ object.capacite_effective }}
+      {% if object.is_tiers_temps %}· Salle tiers-temps{% endif %}
+    </p>
+
+    <form method="post" style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <button class="btn btn--ghost" type="submit">Supprimer</button>
+      <a class="btn btn--outline" href="{% url 'rooms:affectation_list' examen.pk %}">Annuler</a>
+    </form>
+  </div>
+{% endblock %}

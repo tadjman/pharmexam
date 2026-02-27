@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Supprimer Salle — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Supprimer la salle</h1>
+  <p class="page-subtitle">Cette action est irréversible.</p>
+
+  <div class="card" style="max-width:720px;">
+    <p style="margin-top:0;">Confirmer la suppression de <strong>{{ object.nom }}</strong> ?</p>
+    <p class="card__meta">Capacité: {{ object.capacite_max }}</p>
+
+    <form method="post" style="display:flex; gap:8px; flex-wrap:wrap;">
+      {% csrf_token %}
+      <button class="btn btn--ghost" type="submit">Supprimer</button>
+      <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Annuler</a>
+    </form>
+  </div>
+{% endblock %}

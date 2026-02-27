@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Inscription Surveillance — Pharmexam{% endblock %}
+
+{% block content %}
+  <h1 class="page-title">Inscription surveillance</h1>
+  <p class="page-subtitle">Inscrire un surveillant sur un examen (quota et disponibilité contrôlés).</p>
+
+  <div class="card" style="max-width:780px;">
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="flash flash--error">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <div style="display:grid; gap:16px;">
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Examen</label>
+          {{ form.examen }}
+          {% if form.examen.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.examen.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Surveillant</label>
+          {{ form.surveillant }}
+          {% if form.surveillant.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.surveillant.errors }}</div>{% endif %}
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
+        <button class="btn btn--primary" type="submit">Enregistrer</button>
+        <a class="btn btn--outline" href="{% url 'assignments:surveillance_list' %}">Retour</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

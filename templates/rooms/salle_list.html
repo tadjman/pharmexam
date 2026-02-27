@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Salles — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Salles</h1>
+      <p class="page-subtitle">Gestion des salles d'examen et de leurs capacités.</p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">Nouvelle salle</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if salles %}
+      <div style="display:grid; gap:16px;">
+        {% for salle in salles %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ salle.nom }}</div>
+              <div class="card__meta">
+                Capacité max: {{ salle.capacite_max }}
+                {% if salle.heure_deverrouillage or salle.heure_verrouillage %}
+                  · Accès: {{ salle.heure_deverrouillage|default:"--:--" }} → {{ salle.heure_verrouillage|default:"--:--" }}
+                {% endif %}
+              </div>
+            </div>
+
+            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn btn--outline" href="{% url 'rooms:salle_update' salle.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'rooms:salle_delete' salle.pk %}">Supprimer</a>
+              </div>
+            {% endif %}
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune salle disponible.</p>
+    {% endif %}
+  </div>
+{% endblock %}

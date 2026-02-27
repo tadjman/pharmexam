@@ -5,6 +5,8 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
 
 from exams.models import Examen
 from accounts.models import RoleUtilisateur
@@ -30,6 +32,9 @@ class Surveillance(models.Model):
         unique_together = [("examen", "surveillant")]
 
     def clean(self):
+        if self.examen_id is None or self.surveillant_id is None:
+            return
+
         # 1) rôle autorisé
         if self.surveillant.role not in {RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT}:
             raise ValidationError("Seuls les membres du pool (ou enseignants si autorisé) peuvent surveiller.")
@@ -49,3 +54,9 @@ class Surveillance(models.Model):
 
     def __str__(self) -> str:
         return f"{self.surveillant} surveille {self.examen}"
+
+
+@receiver(post_save, sender=Surveillance)
+@receiver(post_delete, sender=Surveillance)
+def update_exam_status_after_surveillance_change(sender, instance, **kwargs):
+    instance.examen.update_statut(save=True)

@@ -1,9 +1,8 @@
-from django.db import models
-
-# Create your models here.
 import uuid
 from django.core.exceptions import ValidationError
+from django.db.models.signals import post_delete, post_save
 from django.db import models
+from django.dispatch import receiver
 
 from exams.models import Examen
 
@@ -47,8 +46,17 @@ class AffectationSalle(models.Model):
     class Meta:
         unique_together = [("examen", "salle")]
 
+    @property
+    def capacite_effective(self) -> int:
+        return self.capacite_reservee if self.capacite_reservee is not None else self.salle.capacite_max
+
     def clean(self):
+        if self.examen_id is None or self.salle_id is None:
+            return
+
         # 1) capacité réservée cohérente
+        if self.capacite_reservee is not None and self.capacite_reservee <= 0:
+            raise ValidationError("capacite_reservee doit être strictement positive.")
         if self.capacite_reservee is not None and self.capacite_reservee > self.salle.capacite_max:
             raise ValidationError("capacite_reservee ne peut pas dépasser capacite_max de la salle.")
 
@@ -69,3 +77,9 @@ class AffectationSalle(models.Model):
     def __str__(self) -> str:
         tag = " (tiers-temps)" if self.is_tiers_temps else ""
         return f"{self.examen} -> {self.salle}{tag}"
+
+
+@receiver(post_save, sender=AffectationSalle)
+@receiver(post_delete, sender=AffectationSalle)
+def update_exam_status_after_room_change(sender, instance, **kwargs):
+    instance.examen.update_statut(save=True)

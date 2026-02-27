@@ -1,5 +1,8 @@
 from django import forms
 from .models import Examen, SessionExamen
+from accounts.models import RoleUtilisateur, User
+from assignments.models import Surveillance
+from rooms.models import AffectationSalle, Salle
 
 
 class ExamForm(forms.ModelForm):
@@ -36,3 +39,60 @@ class ExamForm(forms.ModelForm):
         # Filtrer les sessions sur l'année active
         if active_year is not None:
             self.fields["session"].queryset = SessionExamen.objects.filter(annee_universitaire=active_year).order_by("-date_debut")
+
+
+class ExamCompletionRoomForm(forms.ModelForm):
+    class Meta:
+        model = AffectationSalle
+        fields = ["salle", "is_tiers_temps", "capacite_reservee"]
+
+    def __init__(self, *args, **kwargs):
+        self.examen = kwargs.pop("examen")
+        super().__init__(*args, **kwargs)
+        self.fields["salle"].queryset = Salle.objects.order_by("nom")
+        for field in self.fields.values():
+            if not getattr(field.widget, "attrs", None):
+                field.widget.attrs = {}
+            field.widget.attrs.setdefault("class", "input")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        self.instance.examen = self.examen
+        return cleaned_data
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.examen = self.examen
+        if commit:
+            obj.save()
+        return obj
+
+
+class ExamCompletionSurveillanceForm(forms.ModelForm):
+    class Meta:
+        model = Surveillance
+        fields = ["surveillant"]
+
+    def __init__(self, *args, **kwargs):
+        self.examen = kwargs.pop("examen")
+        super().__init__(*args, **kwargs)
+        self.fields["surveillant"].queryset = User.objects.filter(
+            role__in=[RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT],
+            is_active=True,
+        ).order_by("username")
+        for field in self.fields.values():
+            if not getattr(field.widget, "attrs", None):
+                field.widget.attrs = {}
+            field.widget.attrs.setdefault("class", "input")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        self.instance.examen = self.examen
+        return cleaned_data
+
+    def save(self, commit=True):
+        obj = super().save(commit=False)
+        obj.examen = self.examen
+        if commit:
+            obj.save()
+        return obj

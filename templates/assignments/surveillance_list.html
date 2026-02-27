@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Surveillances — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Surveillances</h1>
+      <p class="page-subtitle">
+        {% if active_year %}
+          Année active : <strong>{{ active_year.nom }}</strong>
+        {% endif %}
+      </p>
+    </div>
+    <a class="btn btn--primary" href="{% url 'assignments:surveillance_create' %}">Nouvelle inscription</a>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
+        {{ filter_form.session }}
+      </div>
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Examen</label>
+        {{ filter_form.examen }}
+      </div>
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Surveillant</label>
+        {{ filter_form.surveillant }}
+      </div>
+      <button class="btn btn--outline" type="submit">Filtrer</button>
+      <a class="btn btn--ghost" href="{% url 'assignments:surveillance_list' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if surveillances %}
+      <div style="display:grid; gap:16px;">
+        {% for s in surveillances %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ s.surveillant.username }}</div>
+              <div class="card__meta">
+                {{ s.examen.nom }} — {{ s.examen.session.nom }} — {{ s.examen.date }} · {{ s.examen.heure_debut }} → {{ s.examen.heure_fin }}
+              </div>
+              <div class="card__meta">
+                Quota examen: {{ s.examen.surveillances.count }}/{{ s.examen.nb_surveillants_requis }}
+              </div>
+            </div>
+            <a class="btn btn--ghost" href="{% url 'assignments:surveillance_delete' s.pk %}">Supprimer</a>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune inscription pour les filtres actuels.</p>
+    {% endif %}
+  </div>
+{% endblock %}
