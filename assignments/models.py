@@ -35,22 +35,34 @@ class Surveillance(models.Model):
         if self.examen_id is None or self.surveillant_id is None:
             return
 
-        # 1) rôle autorisé
         if self.surveillant.role not in {RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT}:
-            raise ValidationError("Seuls les membres du pool (ou enseignants si autorisé) peuvent surveiller.")
+            raise ValidationError(
+                {"surveillant": "Seuls les enseignants et les membres du pool peuvent être inscrits en surveillance."}
+            )
 
-        # 2) quota surveillants
-        # (attention: si concurrence, faire ce check dans un service transactionnel)
         count = Surveillance.objects.filter(examen=self.examen).exclude(pk=self.pk).count()
         if count >= self.examen.nb_surveillants_requis:
-            raise ValidationError("Quota de surveillants déjà atteint pour cet examen.")
+            raise ValidationError(
+                {
+                    "surveillant": (
+                        f"Le quota de surveillants est déjà atteint pour cet examen "
+                        f"({self.examen.nb_surveillants_requis} requis)."
+                    )
+                }
+            )
 
-        # 3) disponibilité: pas de chevauchement pour le surveillant
         qs = Surveillance.objects.filter(surveillant=self.surveillant).exclude(pk=self.pk).select_related("examen")
         for s in qs:
             e = s.examen
             if (self.examen.start_dt < e.end_dt) and (e.start_dt < self.examen.end_dt):
-                raise ValidationError("Conflit: vous êtes déjà inscrit sur un examen sur ce créneau.")
+                raise ValidationError(
+                    {
+                        "surveillant": (
+                            f"{self.surveillant.username} est déjà inscrit sur l'examen "
+                            f"'{e.nom}' sur ce créneau."
+                        )
+                    }
+                )
 
     def __str__(self) -> str:
         return f"{self.surveillant} surveille {self.examen}"

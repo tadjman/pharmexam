@@ -104,18 +104,56 @@
       <h2 class="card__title">Salles affectées</h2>
       {% if examen.affectations_salles.all %}
         <div style="display:grid; gap:12px;">
-          {% for a in examen.affectations_salles.all %}
-            <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
-              <div class="card__meta">
-                {{ a.salle.nom }} — capacité {{ a.capacite_effective }}{% if a.is_tiers_temps %} · tiers-temps{% endif %}
+          {% for row in room_edit_rows %}
+            {% with a=row.affectation edit_form=row.form %}
+            <div style="display:grid; gap:12px; padding:12px 0; border-bottom:1px solid var(--border);">
+              <div style="display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap;">
+                <div class="card__meta">
+                  {{ a.salle.nom }} — capacité {{ a.capacite_effective }}{% if a.is_tiers_temps %} · tiers-temps{% endif %}
+                </div>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_room">
+                  <input type="hidden" name="room_id" value="{{ a.pk }}">
+                  <button class="btn btn--ghost" type="submit">Supprimer</button>
+                </form>
               </div>
-              <form method="post">
+
+              <form method="post" novalidate style="display:grid; gap:12px;">
                 {% csrf_token %}
-                <input type="hidden" name="action" value="delete_room">
+                <input type="hidden" name="action" value="update_room">
                 <input type="hidden" name="room_id" value="{{ a.pk }}">
-                <button class="btn btn--ghost" type="submit">Supprimer</button>
+
+                {% if edit_form.non_field_errors %}
+                  <div class="flash flash--error">{{ edit_form.non_field_errors }}</div>
+                {% endif %}
+
+                <div style="display:grid; gap:12px;">
+                  <div>
+                    <label style="font-weight:500; display:block; margin-bottom:8px;">Salle</label>
+                    {{ edit_form.salle }}
+                    {% if edit_form.salle.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ edit_form.salle.errors }}</div>{% endif %}
+                  </div>
+                  <div>
+                    <label style="display:flex; gap:8px; align-items:center;">
+                      {{ edit_form.is_tiers_temps }}
+                      <span>Salle tiers-temps</span>
+                    </label>
+                    {% if edit_form.is_tiers_temps.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ edit_form.is_tiers_temps.errors }}</div>{% endif %}
+                  </div>
+                  <div>
+                    <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité réservée</label>
+                    {{ edit_form.capacite_reservee }}
+                    {% if edit_form.capacite_reservee.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ edit_form.capacite_reservee.errors }}</div>{% endif %}
+                  </div>
+                </div>
+
+                <div>
+                  <button class="btn btn--outline" type="submit">Mettre à jour</button>
+                </div>
               </form>
             </div>
+            {% endwith %}
           {% endfor %}
         </div>
       {% else %}

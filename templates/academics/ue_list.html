@@ -1,14 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Salles — Pharmexam{% endblock %}
+{% block title %}UE — Pharmexam{% endblock %}
 
 {% block content %}
   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
-      <h1 class="page-title">Salles</h1>
-      <p class="page-subtitle">Gestion des salles d'examen et de leurs capacités.</p>
+      <h1 class="page-title">UE</h1>
+      <p class="page-subtitle">Gère les unités d'enseignement et leurs responsables.</p>
     </div>
     {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-      <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">Nouvelle salle</a>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Voir les UP</a>
+        <a class="btn btn--primary" href="{% url 'academics:ue_create' %}">Nouvelle UE</a>
+      </div>
     {% endif %}
   </div>
 
@@ -16,36 +19,37 @@
     <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
       <div style="min-width:240px;">
         <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
-        <input type="text" name="q" value="{{ query }}" class="input" placeholder="Nom de salle">
+        {{ filter_form.q }}
       </div>
-      <div style="min-width:220px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité minimale</label>
-        <input type="number" min="0" name="capacite_min" value="{{ capacite_min }}" class="input" placeholder="Ex: 50">
+      <div style="min-width:240px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
+        {{ filter_form.responsable }}
       </div>
       <button class="btn btn--outline" type="submit">Filtrer</button>
-      <a class="btn btn--ghost" href="{% url 'rooms:salle_list' %}">Réinitialiser</a>
+      <a class="btn btn--ghost" href="{% url 'academics:ue_list' %}">Réinitialiser</a>
     </form>
   </div>
 
   <div class="card" style="margin-top:16px;">
-    {% if salles %}
+    {% if ues %}
       <div style="display:grid; gap:16px;">
-        {% for salle in salles %}
+        {% for ue in ues %}
           <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
             <div>
-              <div style="font-weight:600; font-size:16px;">{{ salle.nom }}</div>
+              <div style="font-weight:600; font-size:16px;">{{ ue.nom }}</div>
               <div class="card__meta">
-                Capacité max: {{ salle.capacite_max }}
-                {% if salle.heure_deverrouillage or salle.heure_verrouillage %}
-                  · Accès: {{ salle.heure_deverrouillage|default:"--:--" }} → {{ salle.heure_verrouillage|default:"--:--" }}
-                {% endif %}
+                Responsables :
+                {% for responsable in ue.responsables.all %}
+                  {{ responsable.username }}{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                  Aucun
+                {% endfor %}
               </div>
             </div>
-
             {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a class="btn btn--outline" href="{% url 'rooms:salle_update' salle.pk %}">Modifier</a>
-                <a class="btn btn--ghost" href="{% url 'rooms:salle_delete' salle.pk %}">Supprimer</a>
+                <a class="btn btn--outline" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'academics:ue_delete' ue.pk %}">Supprimer</a>
               </div>
             {% endif %}
           </div>
@@ -53,7 +57,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune salle disponible.</p>
+      <p class="page-subtitle" style="margin:0;">Aucune UE créée pour le moment.</p>
     {% endif %}
   </div>
   {% include "includes/pagination.html" %}

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Supprimer — Pharmexam{% endblock %}
+{% block title %}Supprimer l'examen — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Supprimer l’examen</h1>
+  <h1 class="page-title">Supprimer l'examen</h1>
   <p class="page-subtitle">Cette action est irréversible.</p>
 
   <div class="card" style="max-width:720px;">
     <p style="margin-top:0;">
-      Confirmer la suppression de : <strong>{{ object.nom }}</strong>
+      Confirmer la suppression de l'examen <strong>{{ object.nom }}</strong> ?
     </p>
 
     <form method="post">

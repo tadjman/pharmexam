@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Examen — Pharmexam{% endblock %}
+{% block title %}{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Examen</h1>
-  <p class="page-subtitle">Création/édition. La date utilise un calendrier, et les heures un sélecteur.</p>
+  <h1 class="page-title">{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %}</h1>
+  <p class="page-subtitle">Renseigne les informations de planification et le responsable pédagogique.</p>
 
   <div class="card" style="max-width:900px;">
     <form method="post" novalidate>

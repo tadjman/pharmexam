@@ -1,5 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.db.models import Q
+from django.db.models import ProtectedError
 from django.shortcuts import redirect, get_object_or_404, render
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -39,7 +41,20 @@ class SessionListView(LoginRequiredMixin, ListView):
         year = get_active_year(self.request)
         if not year:
             return SessionExamen.objects.none()
-        return SessionExamen.objects.filter(annee_universitaire=year).order_by("-date_debut")
+        qs = SessionExamen.objects.filter(annee_universitaire=year).order_by("-date_debut")
+        self.query = self.request.GET.get("q", "").strip()
+        if self.query:
+            qs = qs.filter(nom__icontains=self.query)
+        return qs
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_year"] = get_active_year(self.request)
+        ctx["query"] = self.query
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        ctx["querystring"] = params.urlencode()
+        return ctx
 
 
 class SessionCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
@@ -50,7 +65,7 @@ class SessionCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView)
 
     def dispatch(self, request, *args, **kwargs):
         if not get_active_year(request):
-            messages.warning(request, "Sélectionne d’abord une année universitaire active.")
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
             return redirect("academics:annee_list")
         return super().dispatch(request, *args, **kwargs)
 
@@ -78,9 +93,18 @@ class SessionDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView)
     template_name = "exams/session_confirm_delete.html"
     success_url = reverse_lazy("exams:session_list")
 
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, "Session supprimée.")
-        return super().delete(request, *args, **kwargs)
+    def form_valid(self, form):
+        self.object = self.get_object()
+        try:
+            self.object.delete()
+        except ProtectedError:
+            messages.error(
+                self.request,
+                "Suppression impossible : cette session contient encore des examens.",
+            )
+            return redirect(self.success_url)
+        messages.success(self.request, "Session supprimée.")
+        return redirect(self.success_url)
 
 
 # ------------------------
@@ -117,6 +141,15 @@ class ExamListView(LoginRequiredMixin, ListView):
         if statut in valid_statuts:
             qs = qs.filter(statut=statut)
 
+        self.query = self.request.GET.get("q", "").strip()
+        if self.query:
+            qs = qs.filter(
+                Q(nom__icontains=self.query)
+                | Q(up__nom__icontains=self.query)
+                | Q(up__ue__nom__icontains=self.query)
+                | Q(responsable__username__icontains=self.query)
+            )
+
         return qs
 
     def get_context_data(self, **kwargs):
@@ -126,8 +159,12 @@ class ExamListView(LoginRequiredMixin, ListView):
         ctx["sessions"] = SessionExamen.objects.filter(annee_universitaire=year).order_by("-date_debut") if year else []
         ctx["selected_session"] = self.request.GET.get("session", "")
         ctx["selected_statut"] = self.request.GET.get("statut", "")
+        ctx["query"] = getattr(self, "query", "")
         ctx["statuts"] = StatutExamen.choices
         ctx["now"] = timezone.now()
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        ctx["querystring"] = params.urlencode()
         return ctx
 
 
@@ -182,7 +219,7 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
     def dispatch(self, request, *args, **kwargs):
         year = get_active_year(request)
         if not year:
-            messages.warning(request, "Sélectionne d’abord une année universitaire active.")
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
             return redirect("academics:annee_list")
         self.examen = get_object_or_404(
             Examen.objects.select_related("session", "up", "up__ue", "responsable").prefetch_related(
@@ -217,6 +254,20 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
                 self.examen.update_statut(save=True)
                 messages.success(request, "Surveillant inscrit.")
                 return redirect("exams:exam_complete", pk=self.examen.pk)
+        elif action == "update_room":
+            room_id = request.POST.get("room_id")
+            affectation = get_object_or_404(AffectationSalle, pk=room_id, examen=self.examen)
+            room_form = ExamCompletionRoomForm(
+                request.POST,
+                examen=self.examen,
+                instance=affectation,
+                prefix=f"room-{affectation.pk}",
+            )
+            if room_form.is_valid():
+                room_form.save()
+                self.examen.update_statut(save=True)
+                messages.success(request, "Affectation salle mise à jour.")
+                return redirect("exams:exam_complete", pk=self.examen.pk)
         elif action == "delete_room":
             room_id = request.POST.get("room_id")
             affectation = get_object_or_404(AffectationSalle, pk=room_id, examen=self.examen)
@@ -226,12 +277,12 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
             if self.examen.nb_eleves_tiers_temps > 0 and affectation.is_tiers_temps:
                 remaining_tiers = self.examen.affectations_salles.exclude(pk=affectation.pk).filter(is_tiers_temps=True).exists()
                 if not remaining_tiers:
-                    messages.error(request, "Impossible: une salle tiers-temps est obligatoire pour cet examen.")
+                    messages.error(request, "Suppression impossible : une salle tiers-temps est obligatoire pour cet examen.")
                     return redirect("exams:exam_complete", pk=self.examen.pk)
             if remaining_capacity < self.examen.nb_eleves:
                 messages.error(
                     request,
-                    f"Impossible: capacité insuffisante après suppression ({remaining_capacity} / {self.examen.nb_eleves}).",
+                    f"Suppression impossible : capacité insuffisante après suppression ({remaining_capacity} / {self.examen.nb_eleves}).",
                 )
                 return redirect("exams:exam_complete", pk=self.examen.pk)
             affectation.delete()
@@ -250,12 +301,23 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
 
     def render_page(self, request, room_form, surveillance_form):
         metrics = _completion_metrics(self.examen)
+        room_edit_rows = []
+        for affectation in self.examen.affectations_salles.all():
+            edit_form = ExamCompletionRoomForm(
+                examen=self.examen,
+                instance=affectation,
+                prefix=f"room-{affectation.pk}",
+            )
+            if room_form.instance.pk == affectation.pk:
+                edit_form = room_form
+            room_edit_rows.append({"affectation": affectation, "form": edit_form})
         return render(
             request,
             self.template_name,
             {
                 "examen": self.examen,
                 "room_form": room_form,
+                "room_edit_rows": room_edit_rows,
                 "surveillance_form": surveillance_form,
                 "metrics": metrics,
             },
@@ -270,7 +332,7 @@ class ExamCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
 
     def dispatch(self, request, *args, **kwargs):
         if not get_active_year(request):
-            messages.warning(request, "Sélectionne d’abord une année universitaire active.")
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
             return redirect("academics:annee_list")
         return super().dispatch(request, *args, **kwargs)
 
@@ -329,6 +391,8 @@ class ExamDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
             return Examen.objects.none()
         return Examen.objects.filter(session__annee_universitaire=year)
 
-    def delete(self, request, *args, **kwargs):
-        messages.success(request, "Examen supprimé.")
-        return super().delete(request, *args, **kwargs)
+    def form_valid(self, form):
+        self.object = self.get_object()
+        self.object.delete()
+        messages.success(self.request, "Examen supprimé.")
+        return redirect(self.success_url)

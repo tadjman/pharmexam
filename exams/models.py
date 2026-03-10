@@ -2,7 +2,7 @@ from django.db import models
 
 # Create your models here.
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -35,6 +35,22 @@ class SessionExamen(models.Model):
     class Meta:
         unique_together = [("annee_universitaire", "nom")]
         ordering = ["-date_debut"]
+
+    def clean(self):
+        if self.date_debut and self.date_fin and self.date_fin < self.date_debut:
+            raise ValidationError(
+                {"date_fin": "La date de fin doit être postérieure ou égale à la date de début."}
+            )
+
+        if self.annee_universitaire_id and self.date_debut and self.date_fin:
+            if self.date_debut < self.annee_universitaire.date_debut:
+                raise ValidationError(
+                    {"date_debut": "La session doit commencer dans les bornes de l'année universitaire."}
+                )
+            if self.date_fin > self.annee_universitaire.date_fin:
+                raise ValidationError(
+                    {"date_fin": "La session doit se terminer dans les bornes de l'année universitaire."}
+                )
 
     def __str__(self) -> str:
         return f"{self.annee_universitaire.nom} - {self.nom}"
@@ -100,24 +116,29 @@ class Examen(models.Model):
         return int(self.duree_minutes * 4 / 3)
 
     def clean(self):
-        # Pendant la validation ModelForm, certains champs peuvent être None.
-        # On laisse d'abord les validations "required" remonter proprement.
         if self.heure_debut is None or self.heure_fin is None:
             return
 
-        # heures cohérentes
         if self.heure_fin <= self.heure_debut:
-            raise ValidationError("L'heure de fin doit être > à l'heure de début.")
+            raise ValidationError(
+                {
+                    "heure_fin": "L'heure de fin doit être postérieure à l'heure de début."
+                }
+            )
 
-        # tiers-temps cohérent
         if (
             self.nb_eleves is not None
             and self.nb_eleves_tiers_temps is not None
             and self.nb_eleves_tiers_temps > self.nb_eleves
         ):
-            raise ValidationError("nb_eleves_tiers_temps ne peut pas dépasser nb_eleves.")
+            raise ValidationError(
+                {
+                    "nb_eleves_tiers_temps": (
+                        "Le nombre d'élèves tiers-temps ne peut pas dépasser le nombre total d'élèves."
+                    )
+                }
+            )
 
-        # responsable doit être responsable de l'UE (ou UP) liée
         if self.up_id is None or self.responsable_id is None:
             return
 
@@ -126,7 +147,13 @@ class Examen(models.Model):
         ok_ue = ue.responsables.filter(pk=user.pk).exists()
         ok_up = self.up.responsables.filter(pk=user.pk).exists()
         if not (ok_ue or ok_up):
-            raise ValidationError("Le responsable doit appartenir aux responsables de l'UE ou de l'UP.")
+            raise ValidationError(
+                {
+                    "responsable": (
+                        "Le responsable sélectionné doit être rattaché à l'UE ou à l'UP choisie."
+                    )
+                }
+            )
 
     def is_termine(self) -> bool:
         return timezone.now() >= self.end_dt

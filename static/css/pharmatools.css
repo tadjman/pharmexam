@@ -90,10 +90,18 @@ a.underlined { text-decoration: underline; font-weight: 500; }
 .nav {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--s-1);
 }
 
+.nav__form {
+  display: flex;
+  margin: 0;
+}
+
 .nav__item {
+  display: inline-flex;
+  align-items: center;
   padding: 10px 12px;
   border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.14);
@@ -108,6 +116,9 @@ a.underlined { text-decoration: underline; font-weight: 500; }
 }
 
 .nav__item--btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 10px 12px;
   border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.14);
@@ -264,6 +275,35 @@ a.underlined { text-decoration: underline; font-weight: 500; }
 .flash--success { border-color: rgba(16,185,129,0.35); }
 .flash--warning { border-color: rgba(245,158,11,0.35); }
 .flash--error { border-color: rgba(229,62,62,0.35); }
+
+.responsable-picker > div {
+  display: grid;
+  gap: 10px;
+}
+
+.responsable-picker label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: rgba(138, 21, 56, 0.03);
+  transition: border-color var(--t), background var(--t), box-shadow var(--t);
+  cursor: pointer;
+}
+
+.responsable-picker label:hover {
+  border-color: rgba(138, 21, 56, 0.35);
+  background: rgba(138, 21, 56, 0.06);
+}
+
+.responsable-picker input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  flex: 0 0 auto;
+}
 
 .footer {
   margin-top: var(--s-6);

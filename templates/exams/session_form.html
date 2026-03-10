@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Session — Pharmexam{% endblock %}
+{% block title %}{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Session d’examens</h1>
-  <p class="page-subtitle">Crée ou modifie une session rattachée à l’année active.</p>
+  <h1 class="page-title">{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %}</h1>
+  <p class="page-subtitle">Rattache la session à l'année active et définis sa période.</p>
 
   <div class="card" style="max-width:720px;">
     <form method="post" novalidate>
@@ -50,7 +50,6 @@
   </div>
 
   <script>
-    // style input auto-render (nom)
     document.querySelectorAll("input[type=text], select, textarea").forEach(el => el.classList.add("input"));
   </script>
 {% endblock %}

@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}UP — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">UP</h1>
+      <p class="page-subtitle">Gère les unités pédagogiques rattachées aux UE.</p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn--outline" href="{% url 'academics:ue_list' %}">Voir les UE</a>
+        <a class="btn btn--primary" href="{% url 'academics:up_create' %}">Nouvelle UP</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:240px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
+        {{ filter_form.q }}
+      </div>
+      <div style="min-width:220px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">UE</label>
+        {{ filter_form.ue }}
+      </div>
+      <div style="min-width:240px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
+        {{ filter_form.responsable }}
+      </div>
+      <button class="btn btn--outline" type="submit">Filtrer</button>
+      <a class="btn btn--ghost" href="{% url 'academics:up_list' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if ups %}
+      <div style="display:grid; gap:16px;">
+        {% for up in ups %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ up.nom }}</div>
+              <div class="card__meta">{{ up.ue.nom }}{% if up.matiere %} · {{ up.matiere }}{% endif %}</div>
+              <div class="card__meta">
+                Responsables :
+                {% for responsable in up.responsables.all %}
+                  {{ responsable.username }}{% if not forloop.last %}, {% endif %}
+                {% empty %}
+                  Aucun
+                {% endfor %}
+              </div>
+            </div>
+            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a class="btn btn--outline" href="{% url 'academics:up_update' up.pk %}">Modifier</a>
+                <a class="btn btn--ghost" href="{% url 'academics:up_delete' up.pk %}">Supprimer</a>
+              </div>
+            {% endif %}
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune UP créée pour le moment.</p>
+    {% endif %}
+  </div>
+  {% include "includes/pagination.html" %}
+{% endblock %}

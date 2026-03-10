@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from .models import Examen, SessionExamen
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
@@ -49,7 +50,13 @@ class ExamCompletionRoomForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         self.examen = kwargs.pop("examen")
         super().__init__(*args, **kwargs)
-        self.fields["salle"].queryset = Salle.objects.order_by("nom")
+        salles = Salle.objects.order_by("nom")
+        if self.instance.pk:
+            self.fields["salle"].queryset = salles.filter(
+                Q(pk=self.instance.salle_id) | ~Q(affectations__examen=self.examen)
+            ).distinct()
+        else:
+            self.fields["salle"].queryset = salles.exclude(affectations__examen=self.examen)
         for field in self.fields.values():
             if not getattr(field.widget, "attrs", None):
                 field.widget.attrs = {}

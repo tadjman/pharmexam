@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Suivi — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Suivi des surveillances</h1>
+      <p class="page-subtitle">
+        {% if active_year %}
+          Année active : <strong>{{ active_year.nom }}</strong>
+        {% endif %}
+      </p>
+    </div>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <a class="btn btn--ghost" href="{% url 'reports:export_center' %}">Centre d'exports</a>
+      <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
+      {% if selected_session_obj %}
+        <a class="btn btn--primary" href="{% url 'reports:export_session' selected_session_obj.pk %}">Exporter la session</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
+        <select name="session" class="input">
+          <option value="">Toutes</option>
+          {% for s in sessions %}
+            <option value="{{ s.pk }}" {% if selected_session == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:220px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Rôle</label>
+        <select name="role" class="input">
+          <option value="">Tous</option>
+          {% for value, label in role_choices %}
+            <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="min-width:240px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Utilisateur</label>
+        <input type="text" name="q" value="{{ query }}" class="input" placeholder="username">
+      </div>
+
+      <button class="btn btn--outline" type="submit">Filtrer</button>
+      <a class="btn btn--ghost" href="{% url 'reports:activity_report' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Utilisateurs</h2>
+      <p class="card__meta">{{ totals.users }}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Examens surveillés</h2>
+      <p class="card__meta">{{ totals.exam_count }}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Heures totales</h2>
+      <p class="card__meta">{{ totals.hours_display }}</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    {% if rows %}
+      <div style="display:grid; gap:16px;">
+        {% for row in rows %}
+          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
+            <div>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <span style="font-weight:600; font-size:16px;">{{ row.user.username }}</span>
+                <span class="badge">{{ row.user.get_role_display }}</span>
+              </div>
+              <div class="card__meta">{{ row.user.first_name }} {{ row.user.last_name }}</div>
+              {% if row.exam_details %}
+                <div style="display:grid; gap:8px; margin-top:12px;">
+                  {% for exam in row.exam_details %}
+                    <div class="card__meta" style="padding:10px 12px; background:rgba(138, 21, 56, 0.04); border-radius:8px;">
+                      <strong style="color:var(--text);">{{ exam.name }}</strong>
+                      <br>
+                      {{ exam.session }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
+              <div class="card__meta"><strong>{{ row.exam_count }}</strong> examen{% if row.exam_count > 1 %}s{% endif %}</div>
+              <div class="card__meta"><strong>{{ row.hours_display }}</strong></div>
+            </div>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune donnée pour les filtres actuels.</p>
+    {% endif %}
+  </div>
+{% endblock %}

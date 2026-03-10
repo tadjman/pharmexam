@@ -3,7 +3,7 @@
 
 {% block content %}
   <h1 class="page-title">Année universitaire</h1>
-  <p class="page-subtitle">Choisis les dates : le nom se génère automatiquement.</p>
+  <p class="page-subtitle">Définis les dates. Le nom se génère automatiquement.</p>
 
   <div class="card" style="max-width:720px;">
     <form method="post" novalidate>
@@ -17,7 +17,6 @@
 
       <div style="display:grid; gap:16px;">
 
-        <!-- NOM (auto) -->
         <div>
           <label style="font-weight:500; display:block; margin-bottom:8px;" for="id_nom">Nom</label>
           <input
@@ -39,7 +38,6 @@
           </div>
         </div>
 
-        <!-- DATES (calendar) -->
         <div style="display:grid; grid-template-columns:1fr; gap:16px;">
           <div>
             <label style="font-weight:500; display:block; margin-bottom:8px;" for="id_date_debut">Date début</label>
@@ -76,7 +74,6 @@
           </div>
         </div>
 
-        <!-- ACTIVE -->
         <label style="display:flex; align-items:center; gap:10px;">
           {{ form.is_active }}
           <span style="color:var(--text-secondary);">Définir comme active</span>
@@ -102,16 +99,13 @@
       const startInput = document.getElementById("id_date_debut");
       const endInput = document.getElementById("id_date_fin");
 
-      // Si l'utilisateur tape le nom, on n'écrase plus.
       let nameManuallyEdited = false;
 
       nameInput.addEventListener("input", () => {
-        // Si l'utilisateur modifie, on considère que c'est volontaire (sauf si vide)
         nameManuallyEdited = nameInput.value.trim().length > 0;
       });
 
       function yearFromDateValue(v) {
-        // v attendu: "YYYY-MM-DD"
         if (!v || v.length < 4) return "";
         return v.slice(0, 4);
       }

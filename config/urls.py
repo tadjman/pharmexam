@@ -18,8 +18,9 @@ from django.contrib import admin
 from django.urls import path
 from django.urls import include
 from django.contrib.auth.decorators import login_required
-from django.views.generic import TemplateView
 from django.contrib.auth import views as auth_views
+
+from .views import DashboardView
 
 
 urlpatterns = [
@@ -27,9 +28,7 @@ urlpatterns = [
 
     path(
         "",
-        login_required(
-            TemplateView.as_view(template_name="pages/dashboard.html")
-        ),
+        login_required(DashboardView.as_view()),
         name="dashboard",
     ),
 
@@ -51,5 +50,5 @@ urlpatterns = [
 
     path("", include("rooms.urls")),
 
-    path("", include("assignments.urls")),
+    path("", include("reports.urls")),
 ]

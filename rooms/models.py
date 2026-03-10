@@ -54,25 +54,39 @@ class AffectationSalle(models.Model):
         if self.examen_id is None or self.salle_id is None:
             return
 
-        # 1) capacité réservée cohérente
         if self.capacite_reservee is not None and self.capacite_reservee <= 0:
-            raise ValidationError("capacite_reservee doit être strictement positive.")
+            raise ValidationError(
+                {"capacite_reservee": "La capacité réservée doit être strictement positive."}
+            )
         if self.capacite_reservee is not None and self.capacite_reservee > self.salle.capacite_max:
-            raise ValidationError("capacite_reservee ne peut pas dépasser capacite_max de la salle.")
+            raise ValidationError(
+                {
+                    "capacite_reservee": (
+                        f"La capacité réservée ne peut pas dépasser la capacité maximale de la salle "
+                        f"({self.salle.capacite_max} places)."
+                    )
+                }
+            )
 
-        # 2) empêcher chevauchement : même salle sur même créneau
-        # (simple, côté application — robuste en pratique si tu l'utilises dans un service transactionnel)
         qs = AffectationSalle.objects.filter(salle=self.salle).exclude(pk=self.pk).select_related("examen")
         for a in qs:
             e = a.examen
             if (self.examen.start_dt < e.end_dt) and (e.start_dt < self.examen.end_dt):
-                raise ValidationError("Conflit: cette salle est déjà utilisée sur ce créneau.")
+                raise ValidationError(
+                    {
+                        "salle": (
+                            f"La salle {self.salle.nom} est déjà affectée à l'examen "
+                            f"'{e.nom}' sur ce créneau."
+                        )
+                    }
+                )
 
-        # 3) une seule salle tiers-temps par examen (si tu veux cette règle)
         if self.is_tiers_temps:
             exists = AffectationSalle.objects.filter(examen=self.examen, is_tiers_temps=True).exclude(pk=self.pk).exists()
             if exists:
-                raise ValidationError("Il ne peut y avoir qu'une seule salle tiers-temps par examen.")
+                raise ValidationError(
+                    {"is_tiers_temps": "Une seule salle tiers-temps peut être définie par examen."}
+                )
 
     def __str__(self) -> str:
         tag = " (tiers-temps)" if self.is_tiers_temps else ""

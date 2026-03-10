@@ -1,3 +1,463 @@
-from django.shortcuts import render
+from django.contrib import messages
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Prefetch
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.views import View
+from django.views.generic import TemplateView
+from xml.sax.saxutils import escape
 
-# Create your views here.
+from academics.models import AnneeUniversitaire
+from accounts.models import RoleUtilisateur, User
+from assignments.models import Surveillance
+from exams.models import Examen, SessionExamen
+
+
+def get_active_year(request):
+    year_id = request.session.get("active_year_id")
+    if year_id:
+        return AnneeUniversitaire.objects.filter(pk=year_id).first()
+    return AnneeUniversitaire.objects.filter(is_active=True).first()
+
+
+def format_minutes(total_minutes: int) -> str:
+    hours, minutes = divmod(total_minutes, 60)
+    return f"{hours}h{minutes:02d}"
+
+
+def get_report_rows(active_year, session=None, role="", query=""):
+    sessions = SessionExamen.objects.filter(annee_universitaire=active_year).order_by("-date_debut")
+    surveillance_qs = Surveillance.objects.filter(
+        examen__session__annee_universitaire=active_year
+    ).select_related("examen", "examen__session")
+
+    if session is not None:
+        surveillance_qs = surveillance_qs.filter(examen__session=session)
+
+    users_qs = User.objects.filter(is_active=True).prefetch_related(
+        Prefetch("surveillances", queryset=surveillance_qs, to_attr="report_surveillances")
+    ).order_by("username")
+
+    if role in {choice[0] for choice in RoleUtilisateur.choices}:
+        users_qs = users_qs.filter(role=role)
+
+    if query:
+        users_qs = users_qs.filter(username__icontains=query)
+
+    rows = []
+    detail_rows = []
+    for user in users_qs:
+        surveillances = sorted(
+            getattr(user, "report_surveillances", []),
+            key=lambda s: (s.examen.date, s.examen.heure_debut, s.examen.nom),
+        )
+        total_minutes = sum(s.examen.duree_minutes for s in surveillances)
+        exam_details = [
+            {
+                "username": user.username,
+                "role": user.get_role_display(),
+                "name": s.examen.nom,
+                "session": s.examen.session.nom,
+                "date": s.examen.date,
+                "time_range": f"{s.examen.heure_debut} → {s.examen.heure_fin}",
+                "duration": format_minutes(s.examen.duree_minutes),
+                "minutes": s.examen.duree_minutes,
+            }
+            for s in surveillances
+        ]
+        detail_rows.extend(exam_details)
+        rows.append(
+            {
+                "user": user,
+                "exam_count": len(surveillances),
+                "total_minutes": total_minutes,
+                "hours_display": format_minutes(total_minutes),
+                "exam_details": exam_details,
+                "exam_details_export": " | ".join(
+                    f"{item['name']} ({item['session']} - {item['date']} - {item['time_range']})"
+                    for item in exam_details
+                ),
+            }
+        )
+
+    rows.sort(key=lambda row: (-row["exam_count"], -row["total_minutes"], row["user"].username))
+    totals = {
+        "users": len(rows),
+        "exam_count": sum(row["exam_count"] for row in rows),
+        "minutes": sum(row["total_minutes"] for row in rows),
+        "hours_display": format_minutes(sum(row["total_minutes"] for row in rows)),
+    }
+    return sessions, rows, totals, detail_rows
+
+
+def build_excel_xml(title, rows, detail_rows):
+    summary_rows = [
+        (
+            "<Row>"
+            "<Cell><Data ss:Type=\"String\">Utilisateur</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Role</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Nom</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Examens</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Minutes</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Heures</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Détail des examens</Data></Cell>"
+            "</Row>"
+        )
+    ]
+
+    for row in rows:
+        full_name = f"{row['user'].first_name} {row['user'].last_name}".strip()
+        summary_rows.append(
+            "<Row>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['user'].username)}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['user'].get_role_display())}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(full_name)}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['exam_count']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['total_minutes']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{row['hours_display']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['exam_details_export'])}</Data></Cell>"
+            "</Row>"
+        )
+
+    detailed_rows = [
+        (
+            "<Row>"
+            "<Cell><Data ss:Type=\"String\">Utilisateur</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Role</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Date</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Créneau</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Minutes</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Durée</Data></Cell>"
+            "</Row>"
+        )
+    ]
+    for item in detail_rows:
+        detailed_rows.append(
+            "<Row>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['username'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['role'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['name'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['session'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(str(item['date']))}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['time_range'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{item['minutes']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['duration'])}</Data></Cell>"
+            "</Row>"
+        )
+
+    return (
+        "<?xml version=\"1.0\"?>"
+        "<?mso-application progid=\"Excel.Sheet\"?>"
+        "<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" "
+        "xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+        "xmlns:x=\"urn:schemas-microsoft-com:office:excel\" "
+        "xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">"
+        "<Worksheet ss:Name=\"Synthese\">"
+        "<Table>"
+        f"<Row><Cell><Data ss:Type=\"String\">{escape(title)}</Data></Cell></Row>"
+        + "".join(summary_rows) +
+        "</Table>"
+        "</Worksheet>"
+        "<Worksheet ss:Name=\"Detail examens\">"
+        "<Table>"
+        f"<Row><Cell><Data ss:Type=\"String\">{escape(title)} - detail</Data></Cell></Row>"
+        + "".join(detailed_rows) +
+        "</Table>"
+        "</Worksheet>"
+        "</Workbook>"
+    )
+
+
+def get_exam_export_rows(active_year, session=None):
+    exams_qs = (
+        SessionExamen.objects.filter(annee_universitaire=active_year)
+        if session is None
+        else SessionExamen.objects.filter(pk=session.pk, annee_universitaire=active_year)
+    )
+    exams = (
+        Examen.objects.filter(session__in=exams_qs)
+        .select_related("session", "up", "up__ue", "responsable")
+        .prefetch_related("affectations_salles__salle", "surveillances__surveillant")
+        .order_by("session__date_debut", "date", "heure_debut", "nom")
+    )
+
+    exam_rows = []
+    room_rows = []
+    surveillance_rows = []
+
+    for exam in exams:
+        affectations = list(exam.affectations_salles.all())
+        surveillances = list(exam.surveillances.all())
+        total_capacity = sum(a.capacite_effective for a in affectations)
+        exam_rows.append(
+            {
+                "session": exam.session.nom,
+                "exam": exam.nom,
+                "date": str(exam.date),
+                "start": str(exam.heure_debut),
+                "end": str(exam.heure_fin),
+                "statut": exam.statut,
+                "ue": exam.up.ue.nom,
+                "up": exam.up.nom,
+                "responsable": exam.responsable.username,
+                "students": exam.nb_eleves,
+                "tiers_students": exam.nb_eleves_tiers_temps,
+                "required_watchers": exam.nb_surveillants_requis,
+                "registered_watchers": len(surveillances),
+                "rooms_count": len(affectations),
+                "total_capacity": total_capacity,
+            }
+        )
+
+        for affectation in affectations:
+            room_rows.append(
+                {
+                    "session": exam.session.nom,
+                    "exam": exam.nom,
+                    "room": affectation.salle.nom,
+                    "max_capacity": affectation.salle.capacite_max,
+                    "reserved_capacity": affectation.capacite_reservee or "",
+                    "effective_capacity": affectation.capacite_effective,
+                    "tiers": "Oui" if affectation.is_tiers_temps else "Non",
+                }
+            )
+
+        for surveillance in surveillances:
+            surveillance_rows.append(
+                {
+                    "session": exam.session.nom,
+                    "exam": exam.nom,
+                    "date": str(exam.date),
+                    "watcher": surveillance.surveillant.username,
+                    "role": surveillance.surveillant.get_role_display(),
+                    "time_range": f"{exam.heure_debut} → {exam.heure_fin}",
+                    "duration": format_minutes(exam.duree_minutes),
+                }
+            )
+
+    return exam_rows, room_rows, surveillance_rows
+
+
+def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
+    exam_sheet_rows = [
+        (
+            "<Row>"
+            "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Date</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Début</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Fin</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Statut</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">UE</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">UP</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Responsable</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Étudiants</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Tiers-temps</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Surveillants requis</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Surveillants inscrits</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Salles</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Capacité totale</Data></Cell>"
+            "</Row>"
+        )
+    ]
+    for row in exam_rows:
+        exam_sheet_rows.append(
+            "<Row>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['date'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['start'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['end'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['statut'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['ue'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['up'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['responsable'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['students']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['tiers_students']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['required_watchers']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['registered_watchers']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['rooms_count']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['total_capacity']}</Data></Cell>"
+            "</Row>"
+        )
+
+    room_sheet_rows = [
+        (
+            "<Row>"
+            "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Salle</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Capacité max</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Capacité réservée</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Capacité effective</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Tiers-temps</Data></Cell>"
+            "</Row>"
+        )
+    ]
+    for row in room_rows:
+        room_sheet_rows.append(
+            "<Row>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['room'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['max_capacity']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(str(row['reserved_capacity']))}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['effective_capacity']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['tiers'])}</Data></Cell>"
+            "</Row>"
+        )
+
+    surveillance_sheet_rows = [
+        (
+            "<Row>"
+            "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Date</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Surveillant</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Rôle</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Créneau</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Durée</Data></Cell>"
+            "</Row>"
+        )
+    ]
+    for row in surveillance_rows:
+        surveillance_sheet_rows.append(
+            "<Row>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['date'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['watcher'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['role'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['time_range'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['duration'])}</Data></Cell>"
+            "</Row>"
+        )
+
+    return (
+        "<?xml version=\"1.0\"?>"
+        "<?mso-application progid=\"Excel.Sheet\"?>"
+        "<Workbook xmlns=\"urn:schemas-microsoft-com:office:spreadsheet\" "
+        "xmlns:o=\"urn:schemas-microsoft-com:office:office\" "
+        "xmlns:x=\"urn:schemas-microsoft-com:office:excel\" "
+        "xmlns:ss=\"urn:schemas-microsoft-com:office:spreadsheet\">"
+        "<Worksheet ss:Name=\"Examens\"><Table>"
+        f"<Row><Cell><Data ss:Type=\"String\">{escape(title)}</Data></Cell></Row>"
+        + "".join(exam_sheet_rows) +
+        "</Table></Worksheet>"
+        "<Worksheet ss:Name=\"Salles\"><Table>"
+        f"<Row><Cell><Data ss:Type=\"String\">{escape(title)} - salles</Data></Cell></Row>"
+        + "".join(room_sheet_rows) +
+        "</Table></Worksheet>"
+        "<Worksheet ss:Name=\"Surveillances\"><Table>"
+        f"<Row><Cell><Data ss:Type=\"String\">{escape(title)} - surveillances</Data></Cell></Row>"
+        + "".join(surveillance_sheet_rows) +
+        "</Table></Worksheet>"
+        "</Workbook>"
+    )
+
+
+class ActivityReportView(LoginRequiredMixin, TemplateView):
+    template_name = "reports/activity_report.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.active_year = get_active_year(request)
+        if not self.active_year:
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
+            return redirect("academics:annee_list")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        session_id = self.request.GET.get("session", "")
+        role = self.request.GET.get("role", "")
+        query = self.request.GET.get("q", "").strip()
+
+        selected_session = None
+        sessions = SessionExamen.objects.filter(annee_universitaire=self.active_year).order_by("-date_debut")
+        if session_id:
+            selected_session = sessions.filter(pk=session_id).first()
+        sessions, rows, totals, detail_rows = get_report_rows(self.active_year, selected_session, role, query)
+
+        ctx["active_year"] = self.active_year
+        ctx["sessions"] = sessions
+        ctx["selected_session_obj"] = selected_session
+        ctx["selected_session"] = session_id
+        ctx["selected_role"] = role
+        ctx["query"] = query
+        ctx["role_choices"] = RoleUtilisateur.choices
+        ctx["rows"] = rows
+        ctx["detail_rows"] = detail_rows
+        ctx["totals"] = totals
+        return ctx
+
+
+class ExportCenterView(LoginRequiredMixin, TemplateView):
+    template_name = "reports/export_center.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.active_year = get_active_year(request)
+        if not self.active_year:
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
+            return redirect("academics:annee_list")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_year"] = self.active_year
+        ctx["sessions"] = SessionExamen.objects.filter(annee_universitaire=self.active_year).order_by("-date_debut")
+        return ctx
+
+
+class BaseExportView(LoginRequiredMixin, View):
+    def dispatch(self, request, *args, **kwargs):
+        self.active_year = get_active_year(request)
+        if not self.active_year:
+            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
+            return redirect("academics:annee_list")
+        return super().dispatch(request, *args, **kwargs)
+
+
+class YearExportView(BaseExportView):
+    def get(self, request, *args, **kwargs):
+        _, rows, _, detail_rows = get_report_rows(self.active_year)
+        title = f"Suivi annee {self.active_year.nom}"
+        response = HttpResponse(build_excel_xml(title, rows, detail_rows), content_type="application/vnd.ms-excel")
+        response["Content-Disposition"] = f'attachment; filename="suivi-{self.active_year.nom}.xls"'
+        return response
+
+
+class SessionExportView(BaseExportView):
+    def get(self, request, *args, **kwargs):
+        session = get_object_or_404(SessionExamen, pk=kwargs["pk"], annee_universitaire=self.active_year)
+        _, rows, _, detail_rows = get_report_rows(self.active_year, session=session)
+        title = f"Suivi session {session.nom}"
+        response = HttpResponse(build_excel_xml(title, rows, detail_rows), content_type="application/vnd.ms-excel")
+        response["Content-Disposition"] = f'attachment; filename="suivi-{session.nom}.xls"'
+        return response
+
+
+class ExamYearExportView(BaseExportView):
+    def get(self, request, *args, **kwargs):
+        exam_rows, room_rows, surveillance_rows = get_exam_export_rows(self.active_year)
+        title = f"Export examens {self.active_year.nom}"
+        response = HttpResponse(
+            build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows),
+            content_type="application/vnd.ms-excel",
+        )
+        response["Content-Disposition"] = f'attachment; filename="examens-{self.active_year.nom}.xls"'
+        return response
+
+
+class ExamSessionExportView(BaseExportView):
+    def get(self, request, *args, **kwargs):
+        session = get_object_or_404(SessionExamen, pk=kwargs["pk"], annee_universitaire=self.active_year)
+        exam_rows, room_rows, surveillance_rows = get_exam_export_rows(self.active_year, session=session)
+        title = f"Export examens {session.nom}"
+        response = HttpResponse(
+            build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows),
+            content_type="application/vnd.ms-excel",
+        )
+        response["Content-Disposition"] = f'attachment; filename="examens-{session.nom}.xls"'
+        return response

@@ -4,27 +4,122 @@
 
 {% block content %}
   <h1 class="page-title">Dashboard</h1>
-  <p class="page-subtitle">
-    Base UI prête. Les fonctionnalités seront ajoutées étape par étape (années, sessions, examens, salles, inscriptions, suivi, exports).
-  </p>
+  <p class="page-subtitle">Vue d'ensemble de l'année active et points d'action prioritaires.</p>
 
   <div class="grid">
     <div class="card">
+      <h2 class="card__title">Années</h2>
+      <p class="card__meta"><strong>{{ kpis.years }}</strong> année{% if kpis.years > 1 %}s{% endif %} configurée{% if kpis.years > 1 %}s{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Sessions</h2>
+      <p class="card__meta"><strong>{{ kpis.sessions }}</strong> session{% if kpis.sessions > 1 %}s{% endif %} sur l'année active</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Examens</h2>
+      <p class="card__meta"><strong>{{ kpis.exams }}</strong> examen{% if kpis.exams > 1 %}s{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Surveillances</h2>
+      <p class="card__meta"><strong>{{ kpis.surveillances }}</strong> inscription{% if kpis.surveillances > 1 %}s{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Salles</h2>
+      <p class="card__meta"><strong>{{ kpis.rooms }}</strong> salle{% if kpis.rooms > 1 %}s{% endif %} référencée{% if kpis.rooms > 1 %}s{% endif %}</p>
+    </div>
+    <div class="card">
+      <h2 class="card__title">Taux de complétion</h2>
+      <p class="card__meta"><strong>{{ kpis.completion_rate }}%</strong> d'examens complets</p>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Statuts examens</h2>
+      <div style="display:grid; gap:10px;">
+        <div class="card__meta"><span class="badge">INITIÉ</span> {{ kpis.initie }}</div>
+        <div class="card__meta"><span class="badge badge--warning">INCOMPLET</span> {{ kpis.incomplete }}</div>
+        <div class="card__meta"><span class="badge badge--success">COMPLET</span> {{ kpis.complete }}</div>
+        <div class="card__meta"><span class="badge badge--info">TERMINÉ</span> {{ kpis.termine }}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Examens à compléter</h2>
+      {% if incomplete_exams %}
+        <div style="display:grid; gap:10px;">
+          {% for exam in incomplete_exams %}
+            <a href="{% url 'exams:exam_complete' exam.pk %}" class="card__meta" style="padding:10px 12px; background:rgba(245, 158, 11, 0.08); border-radius:8px;">
+              <strong style="color:var(--text);">{{ exam.nom }}</strong><br>
+              {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="card__meta">Aucun examen à compléter.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Prochains examens</h2>
+      {% if upcoming_exams %}
+        <div style="display:grid; gap:10px;">
+          {% for exam in upcoming_exams %}
+            <a href="{% url 'exams:exam_detail' exam.pk %}" class="card__meta" style="padding:10px 12px; background:rgba(59, 130, 246, 0.06); border-radius:8px;">
+              <strong style="color:var(--text);">{{ exam.nom }}</strong><br>
+              {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="card__meta">Aucun examen à venir.</p>
+      {% endif %}
+    </div>
+  </div>
+
+ <!--
+  <div class="grid">
+    <div class="card">
       <h2 class="card__title">Année universitaire</h2>
-      <p class="card__meta">Sélection + gestion (à l’étape 2).</p>
-      <a class="btn btn--outline" href="#">Bientôt</a>
+      <p class="card__meta">Sélectionne l'année active et gère les périodes universitaires.</p>
+      <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Ouvrir</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">UE / UP</h2>
+      <p class="card__meta">Gère les référentiels pédagogiques et les responsables associés.</p>
+      <a class="btn btn--outline" href="{% url 'academics:ue_list' %}">Ouvrir</a>
     </div>
 
     <div class="card">
       <h2 class="card__title">Sessions d’examens</h2>
-      <p class="card__meta">Création / suppression, rattachée à l’année (étape 4).</p>
-      <a class="btn btn--outline" href="#">Bientôt</a>
+      <p class="card__meta">Crée, modifie et supprime les sessions rattachées à l'année active.</p>
+      <a class="btn btn--outline" href="{% url 'exams:session_list' %}">Ouvrir</a>
     </div>
 
     <div class="card">
       <h2 class="card__title">Examens</h2>
-      <p class="card__meta">Création INITIÉ, statuts, règles (étapes 5–8).</p>
-      <a class="btn btn--primary" href="#">Bientôt</a>
+      <p class="card__meta">Crée les examens puis complète-les avec salles, tiers-temps et surveillants.</p>
+      <a class="btn btn--primary" href="{% url 'exams:exam_list' %}">Ouvrir</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Salles</h2>
+      <p class="card__meta">Gère le référentiel des salles et leurs capacités disponibles.</p>
+      <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Ouvrir</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Suivi</h2>
+      <p class="card__meta">Consulte le nombre d'examens surveillés et les heures effectuées par utilisateur.</p>
+      <a class="btn btn--outline" href="{% url 'reports:activity_report' %}">Ouvrir</a>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Exports</h2>
+      <p class="card__meta">Télécharge les exports Excel du suivi par année active ou par session.</p>
+      <a class="btn btn--outline" href="{% url 'reports:activity_report' %}">Accéder aux exports</a>
     </div>
   </div>
+-->
 {% endblock %}

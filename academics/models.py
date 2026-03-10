@@ -1,8 +1,8 @@
-from django.db import models
 import uuid
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
-# Create your models here.
 
 
 
@@ -15,6 +15,18 @@ class AnneeUniversitaire(models.Model):
 
     class Meta:
         ordering = ["-date_debut"]
+
+    def clean(self):
+        if self.date_debut and self.date_fin and self.date_fin <= self.date_debut:
+            raise ValidationError(
+                {"date_fin": "La date de fin doit être postérieure à la date de début."}
+            )
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+        if self.is_active:
+            AnneeUniversitaire.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
 
     def __str__(self) -> str:
         return self.nom

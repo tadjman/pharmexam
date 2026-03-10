@@ -20,6 +20,17 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
+    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
+        <input type="text" name="q" value="{{ query }}" class="input" placeholder="Nom de session">
+      </div>
+      <button class="btn btn--outline" type="submit">Filtrer</button>
+      <a class="btn btn--ghost" href="{% url 'exams:session_list' %}">Réinitialiser</a>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
     {% if sessions %}
       <div style="display:grid; gap:16px;">
         {% for s in sessions %}
@@ -43,4 +54,5 @@
       <p class="page-subtitle" style="margin:0;">Aucune session pour cette année.</p>
     {% endif %}
   </div>
+  {% include "includes/pagination.html" %}
 {% endblock %}

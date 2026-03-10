@@ -43,6 +43,11 @@
         </select>
       </div>
 
+      <div style="min-width:260px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
+        <input type="text" name="q" value="{{ query }}" class="input" placeholder="Examen, UE, UP, responsable">
+      </div>
+
       <button class="btn btn--outline" type="submit">Filtrer</button>
       <a class="btn btn--ghost" href="{% url 'exams:exam_list' %}">Réinitialiser</a>
     </form>
@@ -93,4 +98,5 @@
       <p class="page-subtitle" style="margin:0;">Aucun examen pour les filtres actuels.</p>
     {% endif %}
   </div>
+  {% include "includes/pagination.html" %}
 {% endblock %}

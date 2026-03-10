@@ -1,0 +1,19 @@
+{% if is_paginated %}
+  <div class="card" style="margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div class="card__meta">
+        Page <strong>{{ page_obj.number }}</strong> sur {{ paginator.num_pages }}
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        {% if page_obj.has_previous %}
+          <a class="btn btn--outline" href="?page=1{% if querystring %}&{{ querystring }}{% endif %}">Première</a>
+          <a class="btn btn--outline" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Précédente</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn--outline" href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}">Suivante</a>
+          <a class="btn btn--outline" href="?page={{ paginator.num_pages }}{% if querystring %}&{{ querystring }}{% endif %}">Dernière</a>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+{% endif %}

@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Salle — Pharmexam{% endblock %}
+{% block title %}{% if form.instance.pk %}Modifier la salle{% else %}Nouvelle salle{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Salle</h1>
-  <p class="page-subtitle">Création/édition d'une salle.</p>
+  <h1 class="page-title">{% if form.instance.pk %}Modifier la salle{% else %}Nouvelle salle{% endif %}</h1>
+  <p class="page-subtitle">Renseigne la capacité et, si besoin, les horaires d'accès.</p>
 
   <div class="card" style="max-width:720px;">
     <form method="post" novalidate>

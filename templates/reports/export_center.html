@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Exports — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Exports</h1>
+      <p class="page-subtitle">Télécharge les exports métier et les exports de suivi pour l'année active.</p>
+    </div>
+    <a class="btn btn--outline" href="{% url 'reports:activity_report' %}">Retour au suivi</a>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Suivi utilisateur</h2>
+      <p class="card__meta">Synthèse des examens surveillés et des heures effectuées.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+        <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Export métier examens</h2>
+      <p class="card__meta">Vue dédiée aux examens, salles affectées et surveillances inscrites.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+        <a class="btn btn--primary" href="{% url 'reports:export_exam_year' %}">Exporter l'année</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 class="card__title">Exports par session</h2>
+    {% if sessions %}
+      <div style="display:grid; gap:16px; margin-top:16px;">
+        {% for session in sessions %}
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ session.nom }}</div>
+              <div class="card__meta">Du {{ session.date_debut }} au {{ session.date_fin }}</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a class="btn btn--outline" href="{% url 'reports:export_session' session.pk %}">Suivi</a>
+              <a class="btn btn--primary" href="{% url 'reports:export_exam_session' session.pk %}">Examens / salles / surveillances</a>
+            </div>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune session disponible pour l'année active.</p>
+    {% endif %}
+  </div>
+{% endblock %}
