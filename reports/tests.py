@@ -3,7 +3,7 @@ from datetime import date, time
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import AnneeUniversitaire, UE, UP
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
 from exams.models import Examen, SessionExamen
@@ -12,12 +12,7 @@ from rooms.models import AffectationSalle, Salle
 
 class ReportsViewTests(TestCase):
     def setUp(self):
-        self.admin_user = User.objects.create_user(
-            username="admin_reports",
-            password="pass",
-            role=RoleUtilisateur.SCOLARITE,
-            is_staff=True,
-        )
+        self.admin_user = User.objects.create_user(username="admin_reports", password="pass", role=RoleUtilisateur.SCOLARITE, is_staff=True)
         self.teacher = User.objects.create_user(
             username="teacher_reports",
             password="pass",
@@ -38,15 +33,17 @@ class ReportsViewTests(TestCase):
             date_fin=date(2028, 7, 31),
             is_active=True,
         )
+        self.formation = Formation.objects.create(annee_universitaire=self.year, nom="DFGSP2")
+        ue = UE.objects.create(nom="UE Bio")
+        ue.responsables.add(self.teacher)
+        self.formation.ues.add(ue)
+        up = UP.objects.create(ue=ue, nom="UP Physio", matiere="PH")
         self.session = SessionExamen.objects.create(
-            annee_universitaire=self.year,
+            formation=self.formation,
             nom="Session export",
             date_debut=date(2028, 1, 10),
             date_fin=date(2028, 1, 20),
         )
-        ue = UE.objects.create(nom="UE Bio")
-        ue.responsables.add(self.teacher)
-        up = UP.objects.create(ue=ue, nom="UP Physio", matiere="PH")
         exam = Examen.objects.create(
             session=self.session,
             up=up,
@@ -69,7 +66,7 @@ class ReportsViewTests(TestCase):
         session["active_year_id"] = str(self.year.pk)
         session.save()
 
-    def test_activity_report_view_displays_counts_and_hours(self):
+    def test_activity_report_view_displays_counts_hours_without_filter_block(self):
         response = self.client.get(reverse("reports:activity_report"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Suivi des surveillances")
@@ -77,7 +74,9 @@ class ReportsViewTests(TestCase):
         self.assertContains(response, "pool_reports")
         self.assertContains(response, "2h30")
         self.assertContains(response, "Exam Export")
+        self.assertContains(response, "DFGSP2")
         self.assertContains(response, "Session export")
+        self.assertNotContains(response, "Filtrer")
 
     def test_year_export_returns_excel_payload(self):
         response = self.client.get(reverse("reports:export_year"))
@@ -89,6 +88,7 @@ class ReportsViewTests(TestCase):
         self.assertIn("pool_reports", content)
         self.assertIn("Suivi annee", content)
         self.assertIn("Exam Export", content)
+        self.assertIn("DFGSP2", content)
         self.assertIn("Detail examens", content)
         self.assertIn("Synthese", content)
 
@@ -98,12 +98,14 @@ class ReportsViewTests(TestCase):
         content = response.content.decode("utf-8")
         self.assertIn("Session export", content)
         self.assertIn("teacher_reports", content)
+        self.assertIn("DFGSP2", content)
 
     def test_export_center_view_lists_available_exports(self):
         response = self.client.get(reverse("reports:export_center"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Export métier examens")
-        self.assertContains(response, "Examens / salles / surveillances")
+        self.assertContains(response, "Exports par formation et session")
+        self.assertContains(response, "DFGSP2")
 
     def test_exam_year_export_contains_exam_room_and_surveillance_sheets(self):
         response = self.client.get(reverse("reports:export_exam_year"))
@@ -115,6 +117,7 @@ class ReportsViewTests(TestCase):
         self.assertIn("Exam Export", content)
         self.assertIn("Salle Export", content)
         self.assertIn("teacher_reports", content)
+        self.assertIn("DFGSP2", content)
 
     def test_exam_session_export_is_scoped_to_selected_session(self):
         response = self.client.get(reverse("reports:export_exam_session", args=[self.session.pk]))
@@ -123,3 +126,4 @@ class ReportsViewTests(TestCase):
         self.assertIn("Session export", content)
         self.assertIn("Exam Export", content)
         self.assertIn("Salle Export", content)
+        self.assertIn("DFGSP2", content)

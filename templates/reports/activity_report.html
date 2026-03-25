@@ -5,66 +5,24 @@
   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">Suivi des surveillances</h1>
-      <p class="page-subtitle">
-        {% if active_year %}
-          Année active : <strong>{{ active_year.nom }}</strong>
-        {% endif %}
-      </p>
+      <p class="page-subtitle">{% if active_year %}Année active : <strong>{{ active_year.nom }}</strong>{% endif %}</p>
     </div>
     <div style="display:flex; gap:8px; flex-wrap:wrap;">
       <a class="btn btn--ghost" href="{% url 'reports:export_center' %}">Centre d'exports</a>
       <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
-      {% if selected_session_obj %}
-        <a class="btn btn--primary" href="{% url 'reports:export_session' selected_session_obj.pk %}">Exporter la session</a>
-      {% endif %}
     </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <div style="min-width:260px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
-        <select name="session" class="input">
-          <option value="">Toutes</option>
-          {% for s in sessions %}
-            <option value="{{ s.pk }}" {% if selected_session == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.nom }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div style="min-width:220px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Rôle</label>
-        <select name="role" class="input">
-          <option value="">Tous</option>
-          {% for value, label in role_choices %}
-            <option value="{{ value }}" {% if selected_role == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div style="min-width:240px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Utilisateur</label>
-        <input type="text" name="q" value="{{ query }}" class="input" placeholder="username">
-      </div>
-
-      <button class="btn btn--outline" type="submit">Filtrer</button>
-      <a class="btn btn--ghost" href="{% url 'reports:activity_report' %}">Réinitialiser</a>
-    </form>
+    <p class="page-subtitle" style="margin:0;">
+      Vue synthétique de l'année active. Les exports détaillés par formation et session restent disponibles depuis le centre d'exports.
+    </p>
   </div>
 
   <div class="grid" style="margin-top:16px;">
-    <div class="card">
-      <h2 class="card__title">Utilisateurs</h2>
-      <p class="card__meta">{{ totals.users }}</p>
-    </div>
-    <div class="card">
-      <h2 class="card__title">Examens surveillés</h2>
-      <p class="card__meta">{{ totals.exam_count }}</p>
-    </div>
-    <div class="card">
-      <h2 class="card__title">Heures totales</h2>
-      <p class="card__meta">{{ totals.hours_display }}</p>
-    </div>
+    <div class="card"><h2 class="card__title">Utilisateurs</h2><p class="card__meta">{{ totals.users }}</p></div>
+    <div class="card"><h2 class="card__title">Examens surveillés</h2><p class="card__meta">{{ totals.exam_count }}</p></div>
+    <div class="card"><h2 class="card__title">Heures totales</h2><p class="card__meta">{{ totals.hours_display }}</p></div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -82,9 +40,8 @@
                 <div style="display:grid; gap:8px; margin-top:12px;">
                   {% for exam in row.exam_details %}
                     <div class="card__meta" style="padding:10px 12px; background:rgba(138, 21, 56, 0.04); border-radius:8px;">
-                      <strong style="color:var(--text);">{{ exam.name }}</strong>
-                      <br>
-                      {{ exam.session }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}
+                      <strong style="color:var(--text);">{{ exam.name }}</strong><br>
+                      {{ exam.formation }} · {{ exam.session }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}
                     </div>
                   {% endfor %}
                 </div>
@@ -100,7 +57,7 @@
         {% endfor %}
       </div>
     {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune donnée pour les filtres actuels.</p>
+      <p class="page-subtitle" style="margin:0;">Aucune donnée disponible pour l'année active.</p>
     {% endif %}
   </div>
 {% endblock %}

@@ -1,51 +1,21 @@
 <nav class="nav">
-
-  <a class="nav__item" href="{% url 'dashboard' %}">Dashboard</a>
-
   {% if user.is_authenticated %}
-
-    {% if user.role == "SCOLARITE" %}
-      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
-      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
-      <a class="nav__item" href="{% url 'academics:ue_list' %}">UE / UP</a>
+    <div class="nav__group">
+      <a class="nav__item" href="{% url 'dashboard' %}">Tableau de bord</a>
+      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années universitaires</a>
+      <a class="nav__item" href="{% url 'academics:formation_list' %}">Formations</a>
       <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
-      <a class="nav__item" href="{% url 'rooms:salle_list' %}">Salles</a>
       <a class="nav__item" href="{% url 'reports:activity_report' %}">Suivi</a>
-      <a class="nav__item" href="{% url 'reports:export_center' %}">Exports</a>
-    {% endif %}
+      {% if user.is_staff or user.is_superuser %}
+        <a class="nav__item" href="/admin/">Admin</a>
+      {% endif %}
+    </div>
 
-    {% if user.role == "ENSEIGNANT" %}
-      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
-      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
-      <a class="nav__item" href="{% url 'academics:ue_list' %}">UE / UP</a>
-      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
-      <a class="nav__item" href="{% url 'rooms:salle_list' %}">Salles</a>
-      <a class="nav__item" href="{% url 'reports:activity_report' %}">Suivi</a>
-      <a class="nav__item" href="{% url 'reports:export_center' %}">Exports</a>
-    {% endif %}
-
-    {% if user.role == "MEMBRE_POOL" %}
-      <a class="nav__item" href="{% url 'academics:annee_list' %}">Années</a>
-      <a class="nav__item" href="{% url 'exams:session_list' %}">Sessions</a>
-      <a class="nav__item" href="{% url 'academics:ue_list' %}">UE / UP</a>
-      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
-      <a class="nav__item" href="{% url 'rooms:salle_list' %}">Salles</a>
-      <a class="nav__item" href="{% url 'reports:activity_report' %}">Suivi</a>
-      <a class="nav__item" href="{% url 'reports:export_center' %}">Exports</a>
-    {% endif %}
-
-    <a class="nav__item" href="/admin/">Admin</a>
-    <form class="nav__form" method="post" action="{% url 'logout' %}">
-        {% csrf_token %}
-        <button type="submit" class="nav__item--btn">
-            Déconnexion
-        </button>
+    <form class="nav__form nav__form--end" method="post" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="nav__logout-btn">Déconnexion</button>
     </form>
-
   {% else %}
-
     <a class="nav__item" href="{% url 'login' %}">Connexion</a>
-
   {% endif %}
-
 </nav>

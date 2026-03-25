@@ -2,7 +2,7 @@ from django import forms
 
 from accounts.models import RoleUtilisateur, User
 
-from .models import UE, UP
+from .models import Formation, UE, UP
 
 
 def _responsables_queryset():
@@ -10,6 +10,35 @@ def _responsables_queryset():
         role__in=[RoleUtilisateur.SCOLARITE, RoleUtilisateur.ENSEIGNANT],
         is_active=True,
     ).order_by("username")
+
+
+class FormationForm(forms.ModelForm):
+    class Meta:
+        model = Formation
+        fields = ["nom", "ues"]
+        widgets = {
+            "ues": forms.CheckboxSelectMultiple(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["nom"].widget.attrs.setdefault("class", "input")
+        self.fields["ues"].queryset = UE.objects.order_by("nom")
+
+
+class FormationFilterForm(forms.Form):
+    q = forms.CharField(required=False, label="Recherche")
+    ue = forms.ModelChoiceField(
+        queryset=UE.objects.order_by("nom"),
+        required=False,
+        label="UE",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["q"].widget.attrs.setdefault("class", "input")
+        self.fields["q"].widget.attrs.setdefault("placeholder", "Nom de la formation")
+        self.fields["ue"].widget.attrs.setdefault("class", "input")
 
 
 class UEForm(forms.ModelForm):

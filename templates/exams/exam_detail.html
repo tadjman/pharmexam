@@ -5,7 +5,7 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">{{ examen.nom }}</h1>
-      <p class="page-subtitle">{{ examen.session.nom }} — {{ examen.up.ue.nom }} / {{ examen.up.nom }}</p>
+      <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.up.ue.nom }} / {{ examen.up.nom }}</p>
     </div>
     {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -19,6 +19,8 @@
   <div class="grid" style="margin-top:16px;">
     <div class="card">
       <h2 class="card__title">Informations</h2>
+      <p class="card__meta"><strong>Formation :</strong> {{ examen.session.formation.nom }}</p>
+      <p class="card__meta"><strong>Session :</strong> {{ examen.session.nom }}</p>
       <p class="card__meta"><strong>Date :</strong> {{ examen.date }}</p>
       <p class="card__meta"><strong>Créneau :</strong> {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
       <p class="card__meta"><strong>Responsable :</strong> {{ examen.responsable.username }}</p>
@@ -51,10 +53,7 @@
       {% if examen.affectations_salles.all %}
         <div style="display:grid; gap:10px;">
           {% for a in examen.affectations_salles.all %}
-            <div class="card__meta">
-              {{ a.salle.nom }} — capacité {{ a.capacite_effective }}
-              {% if a.is_tiers_temps %}· tiers-temps{% endif %}
-            </div>
+            <div class="card__meta">{{ a.salle.nom }} — capacité {{ a.capacite_effective }}{% if a.is_tiers_temps %} · tiers-temps{% endif %}</div>
           {% endfor %}
         </div>
       {% else %}

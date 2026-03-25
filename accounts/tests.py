@@ -1,18 +1,14 @@
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import AnneeUniversitaire, UE, UP
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
 
 
 class AuthenticationTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(
-            username="adam",
-            password="pass123",
-            role=RoleUtilisateur.SCOLARITE,
-        )
+        self.user = User.objects.create_user(username="adam", password="pass123", role=RoleUtilisateur.SCOLARITE)
 
     def test_dashboard_redirects_anonymous_user_to_login(self):
         response = self.client.get(reverse("dashboard"))
@@ -26,10 +22,7 @@ class AuthenticationTests(TestCase):
         self.assertContains(response, "Nom d’utilisateur")
 
     def test_valid_login_redirects_to_dashboard(self):
-        response = self.client.post(
-            reverse("login"),
-            {"username": "adam", "password": "pass123"},
-        )
+        response = self.client.post(reverse("login"), {"username": "adam", "password": "pass123"})
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("dashboard"))
 
@@ -39,26 +32,24 @@ class AuthenticationTests(TestCase):
         self.assertTrue(self.user.is_admin())
 
     def test_dashboard_displays_kpis_when_active_year_exists(self):
-        teacher = User.objects.create_user(
-            username="teacher_dashboard",
-            password="pass",
-            role=RoleUtilisateur.ENSEIGNANT,
-        )
+        teacher = User.objects.create_user(username="teacher_dashboard", password="pass", role=RoleUtilisateur.ENSEIGNANT)
         year = AnneeUniversitaire.objects.create(
             nom="2033/2034",
             date_debut="2033-09-01",
             date_fin="2034-07-31",
             is_active=True,
         )
+        formation = Formation.objects.create(annee_universitaire=year, nom="Formation KPI")
+        ue = UE.objects.create(nom="UE KPI")
+        ue.responsables.add(teacher)
+        formation.ues.add(ue)
+        up = UP.objects.create(ue=ue, nom="UP KPI", matiere="KPI")
         session = SessionExamen.objects.create(
-            annee_universitaire=year,
+            formation=formation,
             nom="Session KPI",
             date_debut="2034-01-01",
             date_fin="2034-01-31",
         )
-        ue = UE.objects.create(nom="UE KPI")
-        ue.responsables.add(teacher)
-        up = UP.objects.create(ue=ue, nom="UP KPI", matiere="KPI")
         Examen.objects.create(
             session=session,
             up=up,
@@ -75,4 +66,28 @@ class AuthenticationTests(TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Taux de complétion")
+        self.assertContains(response, "Formation KPI")
         self.assertContains(response, "Exam KPI")
+
+    def test_navbar_exposes_only_main_application_sections(self):
+        year = AnneeUniversitaire.objects.create(
+            nom="2034/2035",
+            date_debut="2034-09-01",
+            date_fin="2035-07-31",
+            is_active=True,
+        )
+        Formation.objects.create(annee_universitaire=year, nom="Formation Navbar")
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        nav_html = response.content.decode().split('<nav class="nav">', 1)[1].split("</nav>", 1)[0]
+        self.assertIn("Tableau de bord", nav_html)
+        self.assertIn("Années universitaires", nav_html)
+        self.assertIn("Formations", nav_html)
+        self.assertIn("Examens", nav_html)
+        self.assertIn("Suivi", nav_html)
+        self.assertNotIn("Exports", nav_html)
+        self.assertNotIn("Enseignement", nav_html)
+        self.assertNotIn("Admin", nav_html)
+        self.assertNotIn("/salles/", nav_html)
+        self.assertContains(response, "Tableau de bord")

@@ -36,10 +36,11 @@
 
   <main class="main">
     <div class="container">
-      {% include "includes/messages.html" %}
       {% block content %}{% endblock %}
     </div>
   </main>
+
+  {% include "includes/messages.html" %}
 
   <footer class="footer">
     <div class="container">

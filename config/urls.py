@@ -20,7 +20,7 @@ from django.urls import include
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import views as auth_views
 
-from .views import DashboardView
+from .views import TableauDeBordView
 
 
 urlpatterns = [
@@ -28,7 +28,7 @@ urlpatterns = [
 
     path(
         "",
-        login_required(DashboardView.as_view()),
+        login_required(TableauDeBordView.as_view()),
         name="dashboard",
     ),
 

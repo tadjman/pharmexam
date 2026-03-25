@@ -1,44 +1,36 @@
 from datetime import date, time
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
-from django.core.exceptions import ValidationError
 
-from academics.models import AnneeUniversitaire, UE, UP
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
-from assignments.models import Surveillance
 from exams.models import Examen, SessionExamen
 from rooms.models import AffectationSalle, Salle
 
 
 class RoomDeleteViewTests(TestCase):
     def setUp(self):
-        self.admin_user = User.objects.create_user(
-            username="admin_room_delete",
-            password="pass",
-            role=RoleUtilisateur.SCOLARITE,
-            is_staff=True,
-        )
-        self.teacher = User.objects.create_user(
-            username="teacher_room_delete",
-            password="pass",
-            role=RoleUtilisateur.ENSEIGNANT,
-        )
+        self.admin_user = User.objects.create_user(username="admin_room_delete", password="pass", role=RoleUtilisateur.SCOLARITE, is_staff=True)
+        self.teacher = User.objects.create_user(username="teacher_room_delete", password="pass", role=RoleUtilisateur.ENSEIGNANT)
         self.year = AnneeUniversitaire.objects.create(
             nom="2029/2030",
             date_debut=date(2029, 9, 1),
             date_fin=date(2030, 7, 31),
             is_active=True,
         )
+        self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation room delete")
+        ue = UE.objects.create(nom="UE Room Delete")
+        ue.responsables.add(self.teacher)
+        self.formation.ues.add(ue)
+        up = UP.objects.create(ue=ue, nom="UP Room Delete", matiere="RD")
         self.session = SessionExamen.objects.create(
-            annee_universitaire=self.year,
+            formation=self.formation,
             nom="Session room delete",
             date_debut=date(2030, 1, 1),
             date_fin=date(2030, 1, 31),
         )
-        ue = UE.objects.create(nom="UE Room Delete")
-        ue.responsables.add(self.teacher)
-        up = UP.objects.create(ue=ue, nom="UP Room Delete", matiere="RD")
         self.exam = Examen.objects.create(
             session=self.session,
             up=up,
@@ -80,15 +72,13 @@ class RoomDeleteViewTests(TestCase):
         response = self.client.get(f"/examens/{self.exam.pk}/salles/")
         self.assertEqual(response.status_code, 404)
 
-    def test_room_list_filters_by_query_and_capacity(self):
+    def test_room_list_displays_available_rooms_without_filter_block(self):
         Salle.objects.create(nom="Amphi 500", capacite_max=500)
-        response = self.client.get(
-            reverse("rooms:salle_list"),
-            {"q": "Amphi", "capacite_min": "100"},
-        )
+        response = self.client.get(reverse("rooms:salle_list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Amphi 500")
-        self.assertNotContains(response, "B201")
+        self.assertContains(response, "B201")
+        self.assertNotContains(response, "Capacité minimale")
 
     def test_update_affectation_inline_from_exam_completion(self):
         affectation = AffectationSalle.objects.get(examen=self.exam, salle=self.salle)
@@ -114,26 +104,24 @@ class RoomDeleteViewTests(TestCase):
 
 class AffectationValidationMessageTests(TestCase):
     def test_capacity_message_is_attached_to_field(self):
-        teacher = User.objects.create_user(
-            username="teacher_room_message",
-            password="pass",
-            role=RoleUtilisateur.ENSEIGNANT,
-        )
+        teacher = User.objects.create_user(username="teacher_room_message", password="pass", role=RoleUtilisateur.ENSEIGNANT)
         year = AnneeUniversitaire.objects.create(
             nom="2030/2031",
             date_debut=date(2030, 9, 1),
             date_fin=date(2031, 7, 31),
             is_active=True,
         )
+        formation = Formation.objects.create(annee_universitaire=year, nom="Formation validation")
+        ue = UE.objects.create(nom="UE Validation")
+        ue.responsables.add(teacher)
+        formation.ues.add(ue)
+        up = UP.objects.create(ue=ue, nom="UP Validation", matiere="VAL")
         session = SessionExamen.objects.create(
-            annee_universitaire=year,
+            formation=formation,
             nom="Session validation",
             date_debut=date(2031, 1, 1),
             date_fin=date(2031, 1, 31),
         )
-        ue = UE.objects.create(nom="UE Validation")
-        ue.responsables.add(teacher)
-        up = UP.objects.create(ue=ue, nom="UP Validation", matiere="VAL")
         exam = Examen.objects.create(
             session=session,
             up=up,
@@ -147,11 +135,7 @@ class AffectationValidationMessageTests(TestCase):
             responsable=teacher,
         )
         room = Salle.objects.create(nom="C101", capacite_max=20)
-        affectation = AffectationSalle(
-            examen=exam,
-            salle=room,
-            capacite_reservee=30,
-        )
+        affectation = AffectationSalle(examen=exam, salle=room, capacite_reservee=30)
         with self.assertRaises(ValidationError) as ctx:
             affectation.full_clean()
         self.assertIn("capacite_reservee", ctx.exception.message_dict)

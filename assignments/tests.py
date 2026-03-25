@@ -4,7 +4,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import AnneeUniversitaire, UE, UP
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
 from exams.models import Examen, SessionExamen
@@ -12,36 +12,26 @@ from exams.models import Examen, SessionExamen
 
 class SurveillanceRulesTests(TestCase):
     def setUp(self):
-        self.teacher = User.objects.create_user(
-            username="teacher2",
-            password="pass",
-            role=RoleUtilisateur.ENSEIGNANT,
-        )
-        self.pool_1 = User.objects.create_user(
-            username="pool_1",
-            password="pass",
-            role=RoleUtilisateur.MEMBRE_POOL,
-        )
-        self.pool_2 = User.objects.create_user(
-            username="pool_2",
-            password="pass",
-            role=RoleUtilisateur.MEMBRE_POOL,
-        )
+        self.teacher = User.objects.create_user(username="teacher2", password="pass", role=RoleUtilisateur.ENSEIGNANT)
+        self.pool_1 = User.objects.create_user(username="pool_1", password="pass", role=RoleUtilisateur.MEMBRE_POOL)
+        self.pool_2 = User.objects.create_user(username="pool_2", password="pass", role=RoleUtilisateur.MEMBRE_POOL)
         self.year = AnneeUniversitaire.objects.create(
             nom="2026/2027",
             date_debut=date(2026, 9, 1),
             date_fin=date(2027, 7, 31),
             is_active=True,
         )
+        self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation 2")
+        self.ue = UE.objects.create(nom="UE Chimie")
+        self.ue.responsables.add(self.teacher)
+        self.formation.ues.add(self.ue)
+        self.up = UP.objects.create(ue=self.ue, nom="UP Analyse", matiere="AN")
         self.session = SessionExamen.objects.create(
-            annee_universitaire=self.year,
+            formation=self.formation,
             nom="Session 2",
             date_debut=date(2026, 11, 1),
             date_fin=date(2026, 11, 30),
         )
-        self.ue = UE.objects.create(nom="UE Chimie")
-        self.ue.responsables.add(self.teacher)
-        self.up = UP.objects.create(ue=self.ue, nom="UP Analyse", matiere="AN")
         self.exam_1 = Examen.objects.create(
             session=self.session,
             up=self.up,
@@ -89,37 +79,26 @@ class SurveillanceRulesTests(TestCase):
 
 class SurveillanceCompletionFlowTests(TestCase):
     def setUp(self):
-        self.admin_user = User.objects.create_user(
-            username="admin_completion",
-            password="pass",
-            role=RoleUtilisateur.SCOLARITE,
-            is_staff=True,
-        )
-        self.teacher = User.objects.create_user(
-            username="teacher_completion",
-            password="pass",
-            role=RoleUtilisateur.ENSEIGNANT,
-        )
-        self.pool = User.objects.create_user(
-            username="pool_completion",
-            password="pass",
-            role=RoleUtilisateur.MEMBRE_POOL,
-        )
+        self.admin_user = User.objects.create_user(username="admin_completion", password="pass", role=RoleUtilisateur.SCOLARITE, is_staff=True)
+        self.teacher = User.objects.create_user(username="teacher_completion", password="pass", role=RoleUtilisateur.ENSEIGNANT)
+        self.pool = User.objects.create_user(username="pool_completion", password="pass", role=RoleUtilisateur.MEMBRE_POOL)
         self.year = AnneeUniversitaire.objects.create(
             nom="2027/2028",
             date_debut=date(2027, 9, 1),
             date_fin=date(2028, 7, 31),
             is_active=True,
         )
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation completion")
+        ue = UE.objects.create(nom="UE Completion")
+        ue.responsables.add(self.teacher)
+        formation.ues.add(ue)
+        up = UP.objects.create(ue=ue, nom="UP Completion", matiere="CP")
         self.session = SessionExamen.objects.create(
-            annee_universitaire=self.year,
+            formation=formation,
             nom="Session completion",
             date_debut=date(2028, 1, 1),
             date_fin=date(2028, 1, 31),
         )
-        ue = UE.objects.create(nom="UE Completion")
-        ue.responsables.add(self.teacher)
-        up = UP.objects.create(ue=ue, nom="UP Completion", matiere="CP")
         self.exam = Examen.objects.create(
             session=self.session,
             up=up,

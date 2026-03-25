@@ -16,25 +16,6 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <div style="min-width:240px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
-        {{ filter_form.q }}
-      </div>
-      <div style="min-width:220px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">UE</label>
-        {{ filter_form.ue }}
-      </div>
-      <div style="min-width:240px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
-        {{ filter_form.responsable }}
-      </div>
-      <button class="btn btn--outline" type="submit">Filtrer</button>
-      <a class="btn btn--ghost" href="{% url 'academics:up_list' %}">Réinitialiser</a>
-    </form>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
     {% if ups %}
       <div style="display:grid; gap:16px;">
         {% for up in ups %}

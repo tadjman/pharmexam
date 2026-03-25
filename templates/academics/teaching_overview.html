@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Enseignement — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Enseignement</h1>
+      <p class="page-subtitle">
+        Catalogue pédagogique : unités d'enseignement, unités pédagogiques et responsables.
+      </p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a class="btn btn--outline" href="{% url 'academics:ue_create' %}">Nouvelle UE</a>
+        <a class="btn btn--primary" href="{% url 'academics:up_create' %}">Nouvelle UP</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <h2 class="card__title">Vue d'ensemble</h2>
+      <p class="card__meta"><strong>UE :</strong> {{ ue_count }}</p>
+      <p class="card__meta"><strong>UP :</strong> {{ up_count }}</p>
+      {% if active_year %}
+        <p class="card__meta"><strong>Année active :</strong> {{ active_year.nom }}</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2 class="card__title">Navigation</h2>
+      <p class="card__meta">Retrouve ici tout le catalogue pédagogique sans surcharger la barre principale.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+        <a class="btn btn--outline" href="{% url 'academics:ue_list' %}">Toutes les UE</a>
+        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Toutes les UP</a>
+        <a class="btn btn--ghost" href="{% url 'academics:formation_list' %}">Formations</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:16px;">
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+        <h2 class="card__title" style="margin:0;">UE récentes</h2>
+        <a class="btn btn--ghost" href="{% url 'academics:ue_list' %}">Voir toutes les UE</a>
+      </div>
+      <div style="display:grid; gap:14px; margin-top:12px;">
+        {% for ue in ues %}
+          <div>
+            <div style="font-weight:600;">{{ ue.nom }}</div>
+            <div class="card__meta">
+              Responsables :
+              {% for responsable in ue.responsables.all %}
+                {{ responsable.username }}{% if not forloop.last %}, {% endif %}
+              {% empty %}
+                Aucun
+              {% endfor %}
+            </div>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% empty %}
+          <p class="page-subtitle" style="margin:0;">Aucune UE créée pour le moment.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
+        <h2 class="card__title" style="margin:0;">UP récentes</h2>
+        <a class="btn btn--ghost" href="{% url 'academics:up_list' %}">Voir toutes les UP</a>
+      </div>
+      <div style="display:grid; gap:14px; margin-top:12px;">
+        {% for up in ups %}
+          <div>
+            <div style="font-weight:600;">{{ up.nom }}</div>
+            <div class="card__meta">{{ up.ue.nom }}{% if up.matiere %} · {{ up.matiere }}{% endif %}</div>
+            <div class="card__meta">
+              Responsables :
+              {% for responsable in up.responsables.all %}
+                {{ responsable.username }}{% if not forloop.last %}, {% endif %}
+              {% empty %}
+                Aucun
+              {% endfor %}
+            </div>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% empty %}
+          <p class="page-subtitle" style="margin:0;">Aucune UP créée pour le moment.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+{% endblock %}

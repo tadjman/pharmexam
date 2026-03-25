@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Formations — Pharmexam{% endblock %}
+
+{% block content %}
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">Formations</h1>
+      <p class="page-subtitle">Choisis une année universitaire pour afficher ses formations.</p>
+    </div>
+    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      <a class="btn btn--primary" href="{{ new_formation_url }}">Nouvelle formation</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <form id="formation-year-form" method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="min-width:280px;">
+        <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez année universitaire</label>
+        <select id="formation-year-select" name="year" class="input">
+          {% for year in years %}
+            <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2 class="card__title">Formations</h2>
+    {% if object_list %}
+      <div style="display:grid; gap:16px; margin-top:16px;">
+        {% for formation in object_list %}
+          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
+            <div>
+              <div style="font-weight:600; font-size:16px;">{{ formation.nom }}</div>
+              <div class="card__meta">{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %} d'examens</div>
+            </div>
+            <a class="btn btn--primary" href="{% url 'academics:formation_detail' formation.pk %}">Détails</a>
+          </div>
+          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="page-subtitle" style="margin:0;">Aucune formation disponible pour cette année universitaire.</p>
+    {% endif %}
+  </div>
+
+  {% include "includes/pagination.html" %}
+
+  <script>
+    (function () {
+      const form = document.getElementById("formation-year-form");
+      const select = document.getElementById("formation-year-select");
+      if (!form || !select) {
+        return;
+      }
+      select.addEventListener("change", function () {
+        form.submit();
+      });
+    })();
+  </script>
+{% endblock %}

@@ -5,7 +5,7 @@
   <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">Exports</h1>
-      <p class="page-subtitle">Télécharge les exports métier et les exports de suivi pour l'année active.</p>
+      <p class="page-subtitle">Télécharge les exports globaux de l'année active ou cible directement une session d'une formation.</p>
     </div>
     <a class="btn btn--outline" href="{% url 'reports:activity_report' %}">Retour au suivi</a>
   </div>
@@ -13,7 +13,7 @@
   <div class="grid" style="margin-top:16px;">
     <div class="card">
       <h2 class="card__title">Suivi utilisateur</h2>
-      <p class="card__meta">Synthèse des examens surveillés et des heures effectuées.</p>
+      <p class="card__meta">Synthèse des examens surveillés et des heures effectuées sur l'année active.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
         <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
       </div>
@@ -21,7 +21,7 @@
 
     <div class="card">
       <h2 class="card__title">Export métier examens</h2>
-      <p class="card__meta">Vue dédiée aux examens, salles affectées et surveillances inscrites.</p>
+      <p class="card__meta">Vue dédiée aux formations, sessions, examens, salles affectées et surveillances inscrites.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
         <a class="btn btn--primary" href="{% url 'reports:export_exam_year' %}">Exporter l'année</a>
       </div>
@@ -29,25 +29,41 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h2 class="card__title">Exports par session</h2>
-    {% if sessions %}
+    <h2 class="card__title">Exports par formation et session</h2>
+    {% if formations %}
       <div style="display:grid; gap:16px; margin-top:16px;">
-        {% for session in sessions %}
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:600; font-size:16px;">{{ session.nom }}</div>
-              <div class="card__meta">Du {{ session.date_debut }} au {{ session.date_fin }}</div>
+        {% for formation in formations %}
+          <div style="display:grid; gap:12px; padding-bottom:16px; border-bottom:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600; font-size:16px;">{{ formation.nom }}</div>
+                <div class="card__meta">{{ formation.sessions.count }} session{% if formation.sessions.count > 1 %}s{% endif %}</div>
+              </div>
+              <a class="btn btn--outline" href="{% url 'exams:session_list' %}?formation={{ formation.pk }}">Voir les sessions</a>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <a class="btn btn--outline" href="{% url 'reports:export_session' session.pk %}">Suivi</a>
-              <a class="btn btn--primary" href="{% url 'reports:export_exam_session' session.pk %}">Examens / salles / surveillances</a>
-            </div>
+            {% if formation.sessions.all %}
+              <div style="display:grid; gap:12px;">
+                {% for session in formation.sessions.all %}
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; padding:10px 12px; background:rgba(138, 21, 56, 0.04); border-radius:8px;">
+                    <div>
+                      <div style="font-weight:600;">{{ session.nom }}</div>
+                      <div class="card__meta">Du {{ session.date_debut }} au {{ session.date_fin }}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <a class="btn btn--outline" href="{% url 'reports:export_session' session.pk %}">Suivi</a>
+                      <a class="btn btn--primary" href="{% url 'reports:export_exam_session' session.pk %}">Examens / salles / surveillances</a>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="card__meta" style="margin:0;">Aucune session disponible pour cette formation.</p>
+            {% endif %}
           </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
         {% endfor %}
       </div>
     {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune session disponible pour l'année active.</p>
+      <p class="page-subtitle" style="margin:0;">Aucune formation disponible pour l'année active.</p>
     {% endif %}
   </div>
 {% endblock %}

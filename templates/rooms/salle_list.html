@@ -13,21 +13,6 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <div style="min-width:240px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
-        <input type="text" name="q" value="{{ query }}" class="input" placeholder="Nom de salle">
-      </div>
-      <div style="min-width:220px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Capacité minimale</label>
-        <input type="number" min="0" name="capacite_min" value="{{ capacite_min }}" class="input" placeholder="Ex: 50">
-      </div>
-      <button class="btn btn--outline" type="submit">Filtrer</button>
-      <a class="btn btn--ghost" href="{% url 'rooms:salle_list' %}">Réinitialiser</a>
-    </form>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
     {% if salles %}
       <div style="display:grid; gap:16px;">
         {% for salle in salles %}

@@ -17,8 +17,8 @@ class SurveillanceForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
 
         self.fields["examen"].queryset = Examen.objects.filter(
-            session__annee_universitaire=active_year
-        ).select_related("session").order_by("date", "heure_debut")
+            session__formation__annee_universitaire=active_year
+        ).select_related("session", "session__formation").order_by("date", "heure_debut")
 
         allowed_roles = [RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT]
         self.fields["surveillant"].queryset = User.objects.filter(
@@ -27,8 +27,6 @@ class SurveillanceForm(forms.ModelForm):
         ).order_by("username")
 
         for field in self.fields.values():
-            if not getattr(field.widget, "attrs", None):
-                field.widget.attrs = {}
             field.widget.attrs.setdefault("class", "input")
 
         is_admin = (
@@ -52,19 +50,20 @@ class SurveillanceFilterForm(forms.Form):
         active_year = kwargs.pop("active_year")
         super().__init__(*args, **kwargs)
 
-        sessions_qs = SessionExamen.objects.filter(annee_universitaire=active_year).order_by("-date_debut")
-        examens_qs = Examen.objects.filter(session__annee_universitaire=active_year).select_related("session").order_by(
-            "date", "heure_debut"
-        )
-
-        allowed_roles = [RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT]
-        surveillants_qs = User.objects.filter(role__in=allowed_roles, is_active=True).order_by("username")
+        sessions_qs = SessionExamen.objects.filter(
+            formation__annee_universitaire=active_year
+        ).order_by("formation__nom", "-date_debut", "nom")
+        examens_qs = Examen.objects.filter(
+            session__formation__annee_universitaire=active_year
+        ).select_related("session", "session__formation").order_by("date", "heure_debut")
+        surveillants_qs = User.objects.filter(
+            role__in=[RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT],
+            is_active=True,
+        ).order_by("username")
 
         self.fields["session"].queryset = sessions_qs
         self.fields["examen"].queryset = examens_qs
         self.fields["surveillant"].queryset = surveillants_qs
 
         for field in self.fields.values():
-            if not getattr(field.widget, "attrs", None):
-                field.widget.attrs = {}
             field.widget.attrs.setdefault("class", "input")

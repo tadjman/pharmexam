@@ -3,7 +3,7 @@
 
 {% block content %}
   <h1 class="page-title">{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %}</h1>
-  <p class="page-subtitle">Renseigne les informations de planification et le responsable pédagogique.</p>
+  <p class="page-subtitle">Choisis d'abord une session, puis complète l'examen avec l'UP et le responsable pédagogique adaptés à la formation.</p>
 
   <div class="card" style="max-width:900px;">
     <form method="post" novalidate>
@@ -14,34 +14,27 @@
       {% endif %}
 
       <div style="display:grid; gap:16px;">
-
-        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
-            {{ form.session }}
-            {% if form.session.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.session.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
-            {{ form.nom }}
-            {% if form.nom.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
-          </div>
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
+          {{ form.session }}
+          {% if form.session.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.session.errors }}</div>{% endif %}
         </div>
-
-        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">UP</label>
-            {{ form.up }}
-            {% if form.up.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.up.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
-            {{ form.responsable }}
-            {% if form.responsable.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.responsable.errors }}</div>{% endif %}
-            <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">
-              Le responsable doit être parmi les responsables de l’UE/UP (contrôlé côté serveur).
-            </div>
-          </div>
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+          {{ form.nom }}
+          {% if form.nom.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
+        </div>
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">UP</label>
+          {{ form.up }}
+          {% if form.up.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.up.errors }}</div>{% endif %}
+          <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">L'UP doit appartenir à une UE rattachée à la formation de la session choisie.</div>
+        </div>
+        <div>
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
+          {{ form.responsable }}
+          {% if form.responsable.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.responsable.errors }}</div>{% endif %}
+          <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">Le responsable doit être parmi les responsables de l’UE ou de l’UP choisie.</div>
         </div>
 
         <div style="display:grid; grid-template-columns:1fr; gap:16px;">
@@ -79,7 +72,6 @@
             {% if form.heure_fin.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.heure_fin.errors }}</div>{% endif %}
           </div>
         </div>
-
       </div>
 
       <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">

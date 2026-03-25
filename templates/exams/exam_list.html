@@ -2,101 +2,193 @@
 {% block title %}Examens — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">Examens</h1>
-      <p class="page-subtitle">
-        {% if active_year %}
-          Année active : <strong>{{ active_year.nom }}</strong>
-        {% else %}
-          Aucune année active.
-        {% endif %}
-      </p>
-    </div>
-
-    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-      <a class="btn btn--primary" href="{% url 'exams:exam_create' %}">Nouvel examen</a>
-    {% endif %}
+  <div>
+    <h1 class="page-title">Examens</h1>
+    <p class="page-subtitle">Choisis une année universitaire, puis une formation, puis une session.</p>
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <form method="get" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-      <div style="min-width:260px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
-        <select name="session" class="input">
-          <option value="">Toutes</option>
-          {% for s in sessions %}
-            <option value="{{ s.pk }}" {% if selected_session == s.pk|stringformat:"s" %}selected{% endif %}>
-              {{ s.nom }}
-            </option>
-          {% endfor %}
-        </select>
+    <form id="exam-scope-form" method="get" style="display:grid; gap:16px;">
+      <div style="display:grid; gap:12px;">
+        <div style="min-width:280px;">
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une année universitaire</label>
+          <select id="year-select" name="year" class="input">
+            {% for year in years %}
+              <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="min-width:280px;">
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une formation</label>
+          <select id="formation-select" name="formation" class="input" {% if not selected_year %}disabled{% endif %}>
+            <option value="">Choisir une formation</option>
+            {% for formation in formations %}
+              <option value="{{ formation.pk }}" {% if selected_formation == formation.pk|stringformat:"s" %}selected{% endif %}>{{ formation.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div style="min-width:280px;">
+          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une session</label>
+          <select id="session-select" name="session" class="input" {% if not selected_formation %}disabled{% endif %}>
+            <option value="">Choisir une session</option>
+            {% for session in sessions %}
+              <option value="{{ session.pk }}" {% if selected_session == session.pk|stringformat:"s" %}selected{% endif %}>{{ session.nom }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
 
-      <div style="min-width:220px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Statut</label>
-        <select name="statut" class="input">
-          <option value="">Tous</option>
-          {% for value,label in statuts %}
-            <option value="{{ value }}" {% if selected_statut == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div style="min-width:260px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Recherche</label>
-        <input type="text" name="q" value="{{ query }}" class="input" placeholder="Examen, UE, UP, responsable">
-      </div>
-
-      <button class="btn btn--outline" type="submit">Filtrer</button>
-      <a class="btn btn--ghost" href="{% url 'exams:exam_list' %}">Réinitialiser</a>
+      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+        {% if selected_session_obj %}
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <a class="btn btn--primary" href="{{ new_exam_url }}">Nouvel examen</a>
+          </div>
+        {% endif %}
+      {% endif %}
     </form>
   </div>
 
-  <div style="margin-top:16px;" class="card">
-    {% if examens %}
-      <div style="display:grid; gap:16px;">
-        {% for e in examens %}
-          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
-            <div>
-              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <a href="{% url 'exams:exam_detail' e.pk %}" style="font-weight:600; font-size:16px;">
-                  {{ e.nom }}
-                </a>
+  {% if selected_session_obj %}
+    <div class="card" style="margin-top:16px;">
+      <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-end;">
+        <div>
+          <h2 class="card__title" style="margin-bottom:6px;">Examens</h2>
+          <p class="card__meta">{{ selected_year.nom }} · {{ selected_formation_obj.nom }} · {{ selected_session_obj.nom }}</p>
+        </div>
+      </div>
 
-                {% if e.statut == "COMPLET" %}
-                  <span class="badge badge--success">COMPLET</span>
-                {% elif e.statut == "INCOMPLET" %}
-                  <span class="badge badge--warning">INCOMPLET</span>
-                {% elif e.statut == "TERMINE" %}
-                  <span class="badge badge--info">TERMINÉ</span>
+      {% if examens %}
+        <div style="display:grid; gap:16px; margin-top:16px;">
+          {% for examen in examens %}
+            <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
+              <div>
+                <div style="font-weight:600; font-size:16px;">{{ examen.nom }}</div>
+                <div class="card__meta">Statut :</div>
+                {% if examen.statut == "COMPLET" %}
+                  <span class="badge badge--success">Complet</span>
+                {% elif examen.statut == "INCOMPLET" %}
+                  <span class="badge badge--warning">Incomplet</span>
+                {% elif examen.statut == "TERMINE" %}
+                  <span class="badge badge--info">Terminé</span>
                 {% else %}
-                  <span class="badge">INITIÉ</span>
+                  <span class="badge">Initié</span>
                 {% endif %}
               </div>
 
-              <div class="card__meta">
-                {{ e.session.nom }} — {{ e.up.ue.nom }} / {{ e.up.nom }} — Responsable : {{ e.responsable.username }}
-              </div>
-              <div class="card__meta">
-                {{ e.date }} · {{ e.heure_debut }} → {{ e.heure_fin }} · {{ e.nb_eleves }} élèves ({{ e.nb_eleves_tiers_temps }} tiers-temps) · {{ e.nb_surveillants_requis }} surveillants requis
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                  {% if examen.statut == "INITIE" or examen.statut == "INCOMPLET" %}
+                    <a class="btn btn--primary" href="{% url 'exams:exam_complete' examen.pk %}">Compléter</a>
+                  {% else %}
+                    <a class="btn btn--outline" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
+                  {% endif %}
+                {% else %}
+                  <a class="btn btn--outline" href="{% url 'exams:exam_detail' examen.pk %}">Voir</a>
+                {% endif %}
               </div>
             </div>
+            {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:16px 0 0;">Aucun examen n'est encore rattaché à cette session.</p>
+      {% endif %}
+    </div>
+    {% include "includes/pagination.html" %}
+  {% endif %}
 
-            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a class="btn btn--outline" href="{% url 'exams:exam_update' e.pk %}">Modifier</a>
-                <a class="btn btn--ghost" href="{% url 'exams:exam_delete' e.pk %}">Supprimer</a>
-              </div>
-            {% endif %}
-          </div>
+  {{ formations_payload|json_script:"formations-data" }}
+  {{ sessions_payload|json_script:"sessions-data" }}
+  <script>
+    (function () {
+      const form = document.getElementById("exam-scope-form");
+      const yearSelect = document.getElementById("year-select");
+      const formationSelect = document.getElementById("formation-select");
+      const sessionSelect = document.getElementById("session-select");
+      const formationsData = JSON.parse(document.getElementById("formations-data").textContent || "[]");
+      const sessionsData = JSON.parse(document.getElementById("sessions-data").textContent || "[]");
 
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucun examen pour les filtres actuels.</p>
-    {% endif %}
-  </div>
-  {% include "includes/pagination.html" %}
+      function refillFormations() {
+        const selectedYear = yearSelect.value;
+        const currentFormation = formationSelect.value;
+        const availableFormations = formationsData.filter(function (formation) {
+          return formation.year_id === selectedYear;
+        });
+
+        formationSelect.innerHTML = "";
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Choisir une formation";
+        formationSelect.appendChild(defaultOption);
+
+        availableFormations.forEach(function (formation) {
+          const option = document.createElement("option");
+          option.value = formation.id;
+          option.textContent = formation.label;
+          if (formation.id === currentFormation) {
+            option.selected = true;
+          }
+          formationSelect.appendChild(option);
+        });
+
+        formationSelect.disabled = !selectedYear;
+        if (!availableFormations.some(function (formation) { return formation.id === currentFormation; })) {
+          formationSelect.value = "";
+        }
+      }
+
+      function refillSessions() {
+        const currentFormation = formationSelect.value;
+        const currentSession = sessionSelect.value;
+        const availableSessions = sessionsData.filter(function (session) {
+          return session.formation_id === currentFormation;
+        });
+
+        sessionSelect.innerHTML = "";
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.textContent = "Choisir une session";
+        sessionSelect.appendChild(defaultOption);
+
+        availableSessions.forEach(function (session) {
+          const option = document.createElement("option");
+          option.value = session.id;
+          option.textContent = session.label;
+          if (session.id === currentSession) {
+            option.selected = true;
+          }
+          sessionSelect.appendChild(option);
+        });
+
+        sessionSelect.disabled = !currentFormation;
+        if (!availableSessions.some(function (session) { return session.id === currentSession; })) {
+          sessionSelect.value = "";
+        }
+      }
+
+      if (!form || !yearSelect || !formationSelect || !sessionSelect) {
+        return;
+      }
+
+      yearSelect.addEventListener("change", function () {
+        refillFormations();
+        refillSessions();
+        form.submit();
+      });
+
+      formationSelect.addEventListener("change", function () {
+        refillSessions();
+        form.submit();
+      });
+
+      sessionSelect.addEventListener("change", function () {
+        form.submit();
+      });
+
+      refillFormations();
+      refillSessions();
+    })();
+  </script>
 {% endblock %}

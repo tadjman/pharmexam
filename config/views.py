@@ -2,7 +2,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count
 from django.views.generic import TemplateView
 
-from academics.models import AnneeUniversitaire
+from academics.models import AnneeUniversitaire, Formation
 from assignments.models import Surveillance
 from exams.models import Examen, SessionExamen, StatutExamen
 from rooms.models import Salle
@@ -15,7 +15,7 @@ def get_active_year(request):
     return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
-class DashboardView(LoginRequiredMixin, TemplateView):
+class TableauDeBordView(LoginRequiredMixin, TemplateView):
     template_name = "pages/dashboard.html"
 
     def get_context_data(self, **kwargs):
@@ -23,10 +23,8 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         active_year = get_active_year(self.request)
         ctx["active_year"] = active_year
 
-        total_years = AnneeUniversitaire.objects.count()
-        total_rooms = Salle.objects.count()
-
         sessions = SessionExamen.objects.none()
+        formations = Formation.objects.none()
         exams = Examen.objects.none()
         surveillances = Surveillance.objects.none()
         upcoming_exams = []
@@ -38,39 +36,49 @@ class DashboardView(LoginRequiredMixin, TemplateView):
         }
 
         if active_year:
-            sessions = SessionExamen.objects.filter(annee_universitaire=active_year)
-            exams = Examen.objects.filter(session__annee_universitaire=active_year).select_related(
-                "session", "up", "up__ue", "responsable"
+            formations = Formation.objects.filter(annee_universitaire=active_year).annotate(
+                session_count=Count("sessions", distinct=True),
+                exam_count=Count("sessions__examens", distinct=True),
+            ).order_by("nom")
+            sessions = SessionExamen.objects.filter(formation__annee_universitaire=active_year)
+            exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
+                "session",
+                "session__formation",
+                "up",
+                "up__ue",
+                "responsable",
             )
             for exam in exams:
                 exam.update_statut(save=True)
-            exams = Examen.objects.filter(session__annee_universitaire=active_year).select_related(
-                "session", "up", "up__ue", "responsable"
+            exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
+                "session",
+                "session__formation",
+                "up",
+                "up__ue",
+                "responsable",
             )
-            surveillances = Surveillance.objects.filter(examen__session__annee_universitaire=active_year)
+            surveillances = Surveillance.objects.filter(examen__session__formation__annee_universitaire=active_year)
             status_counts = exams.values("statut").annotate(total=Count("id"))
             exams_by_status.update({row["statut"]: row["total"] for row in status_counts})
-            upcoming_exams = list(
-                exams.exclude(statut=StatutExamen.TERMINE).order_by("date", "heure_debut")[:5]
-            )
+            upcoming_exams = list(exams.exclude(statut=StatutExamen.TERMINE).order_by("date", "heure_debut")[:5])
 
         total_exams = exams.count()
-        total_sessions = sessions.count()
-        total_surveillances = surveillances.count()
         completion_rate = int((exams_by_status[StatutExamen.COMPLET] / total_exams) * 100) if total_exams else 0
 
         ctx["kpis"] = {
-            "years": total_years,
-            "rooms": total_rooms,
-            "sessions": total_sessions,
+            "years": AnneeUniversitaire.objects.count(),
+            "formations": formations.count(),
+            "sessions": sessions.count(),
             "exams": total_exams,
-            "surveillances": total_surveillances,
+            "surveillances": surveillances.count(),
+            "rooms": Salle.objects.count(),
             "completion_rate": completion_rate,
             "complete": exams_by_status[StatutExamen.COMPLET],
             "incomplete": exams_by_status[StatutExamen.INCOMPLET],
             "initie": exams_by_status[StatutExamen.INITIE],
             "termine": exams_by_status[StatutExamen.TERMINE],
         }
+        ctx["formations"] = formations
         ctx["upcoming_exams"] = upcoming_exams
         ctx["incomplete_exams"] = list(
             exams.filter(statut__in=[StatutExamen.INITIE, StatutExamen.INCOMPLET]).order_by("date", "heure_debut")[:5]

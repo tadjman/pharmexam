@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import ProtectedError
-from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
@@ -21,20 +20,10 @@ class SalleListView(LoginRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        qs = Salle.objects.order_by("nom")
-        self.query = self.request.GET.get("q", "").strip()
-        self.capacite_min = self.request.GET.get("capacite_min", "").strip()
-
-        if self.query:
-            qs = qs.filter(Q(nom__icontains=self.query))
-        if self.capacite_min.isdigit():
-            qs = qs.filter(capacite_max__gte=int(self.capacite_min))
-        return qs
+        return Salle.objects.order_by("nom")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["query"] = self.query
-        ctx["capacite_min"] = self.capacite_min
         params = self.request.GET.copy()
         params.pop("page", None)
         ctx["querystring"] = params.urlencode()

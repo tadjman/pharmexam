@@ -1,24 +1,28 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Q
 from django.db.models import ProtectedError
-from django.shortcuts import redirect, get_object_or_404, render
-from django.urls import reverse_lazy
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views import View
-from django.views.generic import ListView, CreateView, UpdateView, DeleteView, DetailView
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
-from academics.models import AnneeUniversitaire
+from academics.models import AnneeUniversitaire, Formation
 from assignments.models import Surveillance
 from rooms.models import AffectationSalle
-from .models import SessionExamen, Examen, StatutExamen
-from .forms import ExamForm, ExamCompletionRoomForm, ExamCompletionSurveillanceForm
+
+from .forms import ExamCompletionRoomForm, ExamCompletionSurveillanceForm, ExamForm, SessionForm
+from .models import Examen, SessionExamen, StatutExamen
 
 
 class IsScolariteOrAdminMixin(UserPassesTestMixin):
     def test_func(self):
-        u = self.request.user
-        return u.is_authenticated and (u.is_superuser or u.is_staff or getattr(u, "role", "") == "SCOLARITE")
+        user = self.request.user
+        return user.is_authenticated and (
+            user.is_superuser or user.is_staff or getattr(user, "role", "") == "SCOLARITE"
+        )
 
 
 def get_active_year(request):
@@ -28,9 +32,12 @@ def get_active_year(request):
     return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
-# ------------------------
-# SESSIONS
-# ------------------------
+def build_url(name, **params):
+    query = urlencode({key: value for key, value in params.items() if value})
+    url = reverse(name)
+    return f"{url}?{query}" if query else url
+
+
 class SessionListView(LoginRequiredMixin, ListView):
     model = SessionExamen
     template_name = "exams/session_list.html"
@@ -38,19 +45,26 @@ class SessionListView(LoginRequiredMixin, ListView):
     paginate_by = 20
 
     def get_queryset(self):
-        year = get_active_year(self.request)
-        if not year:
+        self.active_year = get_active_year(self.request)
+        self.formations = Formation.objects.select_related("annee_universitaire").order_by(
+            "annee_universitaire__date_debut", "nom"
+        )
+        self.selected_formation = self.request.GET.get("formation", "").strip()
+        self.selected_formation_obj = self.formations.filter(pk=self.selected_formation).first() if self.selected_formation else None
+        if not self.selected_formation_obj:
             return SessionExamen.objects.none()
-        qs = SessionExamen.objects.filter(annee_universitaire=year).order_by("-date_debut")
-        self.query = self.request.GET.get("q", "").strip()
-        if self.query:
-            qs = qs.filter(nom__icontains=self.query)
-        return qs
+
+        qs = SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
+            formation=self.selected_formation_obj
+        )
+        return qs.order_by("-date_debut", "nom")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["active_year"] = get_active_year(self.request)
-        ctx["query"] = self.query
+        ctx["active_year"] = getattr(self, "active_year", None)
+        ctx["selected_formation"] = getattr(self, "selected_formation", "")
+        ctx["selected_formation_obj"] = getattr(self, "selected_formation_obj", None)
+        ctx["new_session_url"] = build_url("exams:session_create", formation=ctx["selected_formation"])
         params = self.request.GET.copy()
         params.pop("page", None)
         ctx["querystring"] = params.urlencode()
@@ -59,33 +73,61 @@ class SessionListView(LoginRequiredMixin, ListView):
 
 class SessionCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
     model = SessionExamen
+    form_class = SessionForm
     template_name = "exams/session_form.html"
-    fields = ["nom", "date_debut", "date_fin"]
-    success_url = reverse_lazy("exams:session_list")
 
     def dispatch(self, request, *args, **kwargs):
-        if not get_active_year(request):
-            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
-            return redirect("academics:annee_list")
+        formation_id = request.GET.get("formation")
+        self.selected_formation = Formation.objects.select_related("annee_universitaire").filter(pk=formation_id).first()
+        self.active_year = self.selected_formation.annee_universitaire if self.selected_formation else get_active_year(request)
+        if not self.active_year and not Formation.objects.exists():
+            messages.warning(request, "Créez d'abord une formation avant d'ajouter une session.")
+            return redirect("academics:formation_list")
+        if self.active_year and not Formation.objects.filter(annee_universitaire=self.active_year).exists():
+            messages.warning(request, "Créez d'abord une formation pour cette année universitaire avant d'ajouter une session.")
+            return redirect(f"{reverse('academics:formation_list')}?year={self.active_year.pk}")
         return super().dispatch(request, *args, **kwargs)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["active_year"] = self.active_year
+        return kwargs
+
+    def get_initial(self):
+        initial = super().get_initial()
+        if self.selected_formation:
+            initial["formation"] = self.selected_formation.pk
+        return initial
+
     def form_valid(self, form):
-        form.instance.annee_universitaire = get_active_year(self.request)
-        resp = super().form_valid(form)
+        response = super().form_valid(form)
         messages.success(self.request, "Session créée.")
-        return resp
+        return response
+
+    def get_success_url(self):
+        return build_url("exams:session_list", formation=self.object.formation_id)
 
 
 class SessionUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
     model = SessionExamen
+    form_class = SessionForm
     template_name = "exams/session_form.html"
-    fields = ["nom", "date_debut", "date_fin"]
-    success_url = reverse_lazy("exams:session_list")
+
+    def get_queryset(self):
+        return SessionExamen.objects.all()
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["active_year"] = self.object.formation.annee_universitaire
+        return kwargs
 
     def form_valid(self, form):
-        resp = super().form_valid(form)
+        response = super().form_valid(form)
         messages.success(self.request, "Session mise à jour.")
-        return resp
+        return response
+
+    def get_success_url(self):
+        return build_url("exams:session_list", formation=self.object.formation_id)
 
 
 class SessionDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
@@ -93,8 +135,12 @@ class SessionDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView)
     template_name = "exams/session_confirm_delete.html"
     success_url = reverse_lazy("exams:session_list")
 
+    def get_queryset(self):
+        return SessionExamen.objects.all()
+
     def form_valid(self, form):
         self.object = self.get_object()
+        success_url = build_url("exams:session_list", formation=self.object.formation_id)
         try:
             self.object.delete()
         except ProtectedError:
@@ -102,66 +148,142 @@ class SessionDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView)
                 self.request,
                 "Suppression impossible : cette session contient encore des examens.",
             )
-            return redirect(self.success_url)
+            return redirect(success_url)
         messages.success(self.request, "Session supprimée.")
-        return redirect(self.success_url)
+        return redirect(success_url)
 
 
-# ------------------------
-# EXAMENS
-# ------------------------
 class ExamListView(LoginRequiredMixin, ListView):
     model = Examen
     template_name = "exams/exam_list.html"
     context_object_name = "examens"
     paginate_by = 20
+    scope_session_key = "exam_scope"
+
+    def _read_scope_value(self, key, stored_scope):
+        if key in self.request.GET:
+            return self.request.GET.get(key, "").strip()
+        return stored_scope.get(key, "")
+
+    def _persist_scope(self):
+        self.request.session[self.scope_session_key] = {
+            "year": str(self.selected_year.pk) if self.selected_year else "",
+            "formation": self.selected_formation,
+            "session": self.selected_session,
+        }
+        self.request.session.modified = True
 
     def get_queryset(self):
-        year = get_active_year(self.request)
-        if not year:
+        self.active_year = get_active_year(self.request)
+        self.years = AnneeUniversitaire.objects.order_by("-date_debut", "-date_fin")
+        stored_scope = self.request.session.get(self.scope_session_key, {})
+        self.selected_year = None
+        selected_year_id = self._read_scope_value("year", stored_scope)
+        if selected_year_id:
+            self.selected_year = self.years.filter(pk=selected_year_id).first()
+        if self.selected_year is None:
+            self.selected_year = self.active_year or self.years.first()
+
+        if not self.selected_year:
+            self.formations = Formation.objects.none()
+            self.sessions = SessionExamen.objects.none()
+            self.selected_formation = ""
+            self.selected_session = ""
+            self.selected_formation_obj = None
+            self.selected_session_obj = None
+            self.formations_payload = []
+            self.sessions_payload = []
+            self._persist_scope()
             return Examen.objects.none()
 
-        base_qs = Examen.objects.select_related("session", "up", "up__ue", "responsable").filter(
-            session__annee_universitaire=year
-        ).order_by("date", "heure_debut")
+        self.formations = Formation.objects.filter(annee_universitaire=self.selected_year).order_by("nom")
+        self.selected_formation = self._read_scope_value("formation", stored_scope)
+        self.selected_session = self._read_scope_value("session", stored_scope)
+        self.formations_payload = [
+            {
+                "id": str(formation.pk),
+                "year_id": str(formation.annee_universitaire_id),
+                "label": formation.nom,
+            }
+            for formation in Formation.objects.select_related("annee_universitaire").order_by(
+                "annee_universitaire__date_debut", "nom"
+            )
+        ]
+        all_sessions = SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
+            formation__annee_universitaire=self.selected_year
+        ).order_by("formation__nom", "-date_debut", "nom")
+        self.sessions_payload = [
+            {
+                "id": str(session.pk),
+                "formation_id": str(session.formation_id),
+                "label": session.nom,
+            }
+            for session in all_sessions
+        ]
 
-        for exam in base_qs:
+        selected_session_obj = None
+        if self.selected_formation and not self.formations.filter(pk=self.selected_formation).exists():
+            self.selected_formation = ""
+            self.selected_session = ""
+        if self.selected_session:
+            selected_session_obj = all_sessions.filter(pk=self.selected_session).first()
+            if selected_session_obj and not self.selected_formation:
+                self.selected_formation = str(selected_session_obj.formation_id)
+            elif selected_session_obj is None:
+                self.selected_session = ""
+
+        self.selected_formation_obj = self.formations.filter(pk=self.selected_formation).first() if self.selected_formation else None
+        self.sessions = all_sessions.filter(formation_id=self.selected_formation) if self.selected_formation else SessionExamen.objects.none()
+        self.selected_session_obj = (
+            self.sessions.filter(pk=self.selected_session).first()
+            if self.selected_session and self.selected_formation
+            else None
+        )
+
+        if not self.selected_session_obj:
+            self.selected_session = ""
+            self._persist_scope()
+            return Examen.objects.none()
+
+        qs = Examen.objects.select_related(
+            "session",
+            "session__formation",
+            "up",
+            "up__ue",
+            "responsable",
+        ).filter(session=self.selected_session_obj)
+
+        for exam in qs:
             exam.update_statut(save=True)
 
-        qs = Examen.objects.select_related("session", "up", "up__ue", "responsable").filter(
-            session__annee_universitaire=year
-        ).order_by("date", "heure_debut")
+        self._persist_scope()
 
-        session_id = self.request.GET.get("session")
-        if session_id:
-            qs = qs.filter(session_id=session_id)
-
-        statut = self.request.GET.get("statut")
-        valid_statuts = {c[0] for c in StatutExamen.choices}
-        if statut in valid_statuts:
-            qs = qs.filter(statut=statut)
-
-        self.query = self.request.GET.get("q", "").strip()
-        if self.query:
-            qs = qs.filter(
-                Q(nom__icontains=self.query)
-                | Q(up__nom__icontains=self.query)
-                | Q(up__ue__nom__icontains=self.query)
-                | Q(responsable__username__icontains=self.query)
+        return (
+            Examen.objects.select_related(
+                "session",
+                "session__formation",
+                "up",
+                "up__ue",
+                "responsable",
             )
-
-        return qs
+            .filter(session=self.selected_session_obj)
+            .order_by("date", "heure_debut")
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        year = get_active_year(self.request)
-        ctx["active_year"] = year
-        ctx["sessions"] = SessionExamen.objects.filter(annee_universitaire=year).order_by("-date_debut") if year else []
-        ctx["selected_session"] = self.request.GET.get("session", "")
-        ctx["selected_statut"] = self.request.GET.get("statut", "")
-        ctx["query"] = getattr(self, "query", "")
-        ctx["statuts"] = StatutExamen.choices
-        ctx["now"] = timezone.now()
+        ctx["active_year"] = getattr(self, "active_year", None)
+        ctx["years"] = getattr(self, "years", AnneeUniversitaire.objects.none())
+        ctx["selected_year"] = getattr(self, "selected_year", None)
+        ctx["formations"] = getattr(self, "formations", Formation.objects.none())
+        ctx["sessions"] = getattr(self, "sessions", SessionExamen.objects.none())
+        ctx["selected_formation"] = getattr(self, "selected_formation", "")
+        ctx["selected_session"] = getattr(self, "selected_session", "")
+        ctx["selected_formation_obj"] = getattr(self, "selected_formation_obj", None)
+        ctx["selected_session_obj"] = getattr(self, "selected_session_obj", None)
+        ctx["formations_payload"] = getattr(self, "formations_payload", [])
+        ctx["sessions_payload"] = getattr(self, "sessions_payload", [])
+        ctx["new_exam_url"] = build_url("exams:exam_create", session=ctx["selected_session"])
         params = self.request.GET.copy()
         params.pop("page", None)
         ctx["querystring"] = params.urlencode()
@@ -174,13 +296,9 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
     context_object_name = "examen"
 
     def get_queryset(self):
-        year = get_active_year(self.request)
-        if not year:
-            return Examen.objects.none()
         return (
-            Examen.objects.select_related("session", "up", "up__ue", "responsable")
+            Examen.objects.select_related("session", "session__formation", "session__formation__annee_universitaire", "up", "up__ue", "responsable")
             .prefetch_related("affectations_salles__salle", "surveillances__surveillant")
-            .filter(session__annee_universitaire=year)
         )
 
     def get_object(self, queryset=None):
@@ -189,27 +307,24 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
         return obj
 
 
-def _completion_metrics(exam: Examen):
+def completion_metrics(exam: Examen):
     total_capacity = sum(a.capacite_effective for a in exam.affectations_salles.select_related("salle"))
     tiers_required = exam.nb_eleves_tiers_temps > 0
     tiers_count = exam.affectations_salles.filter(is_tiers_temps=True).count()
     surveillants_count = exam.surveillances.count()
-    missing_capacity = max(0, exam.nb_eleves - total_capacity)
-    missing_surveillants = max(0, exam.nb_surveillants_requis - surveillants_count)
-    missing_tiers_room = 1 if (tiers_required and tiers_count == 0) else 0
     return {
         "total_capacity": total_capacity,
         "required_capacity": exam.nb_eleves,
         "capacity_ok": total_capacity >= exam.nb_eleves,
-        "missing_capacity": missing_capacity,
+        "missing_capacity": max(0, exam.nb_eleves - total_capacity),
         "tiers_required": tiers_required,
         "tiers_count": tiers_count,
         "tiers_ok": (not tiers_required) or tiers_count > 0,
-        "missing_tiers_room": missing_tiers_room,
+        "missing_tiers_room": 1 if tiers_required and tiers_count == 0 else 0,
         "surveillants_count": surveillants_count,
         "surveillants_required": exam.nb_surveillants_requis,
         "surveillants_ok": surveillants_count >= exam.nb_surveillants_requis,
-        "missing_surveillants": missing_surveillants,
+        "missing_surveillants": max(0, exam.nb_surveillants_requis - surveillants_count),
     }
 
 
@@ -217,16 +332,12 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
     template_name = "exams/exam_complete.html"
 
     def dispatch(self, request, *args, **kwargs):
-        year = get_active_year(request)
-        if not year:
-            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
-            return redirect("academics:annee_list")
         self.examen = get_object_or_404(
-            Examen.objects.select_related("session", "up", "up__ue", "responsable").prefetch_related(
-                "affectations_salles__salle", "surveillances__surveillant"
+            Examen.objects.select_related("session", "session__formation", "session__formation__annee_universitaire", "up", "up__ue", "responsable").prefetch_related(
+                "affectations_salles__salle",
+                "surveillances__surveillant",
             ),
             pk=kwargs["pk"],
-            session__annee_universitaire=year,
         )
         return super().dispatch(request, *args, **kwargs)
 
@@ -272,12 +383,18 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
             room_id = request.POST.get("room_id")
             affectation = get_object_or_404(AffectationSalle, pk=room_id, examen=self.examen)
             remaining_capacity = sum(
-                a.capacite_effective for a in self.examen.affectations_salles.exclude(pk=affectation.pk).select_related("salle")
+                affect.capacite_effective
+                for affect in self.examen.affectations_salles.exclude(pk=affectation.pk).select_related("salle")
             )
             if self.examen.nb_eleves_tiers_temps > 0 and affectation.is_tiers_temps:
-                remaining_tiers = self.examen.affectations_salles.exclude(pk=affectation.pk).filter(is_tiers_temps=True).exists()
+                remaining_tiers = self.examen.affectations_salles.exclude(pk=affectation.pk).filter(
+                    is_tiers_temps=True
+                ).exists()
                 if not remaining_tiers:
-                    messages.error(request, "Suppression impossible : une salle tiers-temps est obligatoire pour cet examen.")
+                    messages.error(
+                        request,
+                        "Suppression impossible : une salle tiers-temps est obligatoire pour cet examen.",
+                    )
                     return redirect("exams:exam_complete", pk=self.examen.pk)
             if remaining_capacity < self.examen.nb_eleves:
                 messages.error(
@@ -300,7 +417,7 @@ class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
         return self.render_page(request, room_form, surveillance_form)
 
     def render_page(self, request, room_form, surveillance_form):
-        metrics = _completion_metrics(self.examen)
+        metrics = completion_metrics(self.examen)
         room_edit_rows = []
         for affectation in self.examen.affectations_salles.all():
             edit_form = ExamCompletionRoomForm(
@@ -328,56 +445,79 @@ class ExamCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
     model = Examen
     form_class = ExamForm
     template_name = "exams/exam_form.html"
-    success_url = reverse_lazy("exams:exam_list")
 
     def dispatch(self, request, *args, **kwargs):
-        if not get_active_year(request):
-            messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
-            return redirect("academics:annee_list")
+        session_id = request.GET.get("session")
+        self.preselected_session = SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
+            pk=session_id
+        ).first() if session_id else None
+        year_scope = self.preselected_session.formation.annee_universitaire if self.preselected_session else get_active_year(request)
+        if not year_scope and not SessionExamen.objects.exists():
+            messages.warning(request, "Créez d'abord une session avant d'initier un examen.")
+            return redirect("exams:session_list")
+        if year_scope and not SessionExamen.objects.filter(formation__annee_universitaire=year_scope).exists():
+            messages.warning(request, "Créez d'abord une session pour cette année universitaire avant d'initier un examen.")
+            return redirect("exams:exam_list")
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["active_year"] = get_active_year(self.request)
+        year_scope = (
+            self.preselected_session.formation.annee_universitaire
+            if getattr(self, "preselected_session", None)
+            else get_active_year(self.request)
+        )
+        kwargs["active_year"] = year_scope
         return kwargs
 
     def get_initial(self):
         initial = super().get_initial()
-        s = self.request.GET.get("session")
-        if s:
-            initial["session"] = s
+        if getattr(self, "preselected_session", None):
+            initial["session"] = self.preselected_session.pk
         return initial
 
     def form_valid(self, form):
         form.instance.statut = StatutExamen.INITIE
-        resp = super().form_valid(form)
+        response = super().form_valid(form)
         self.object.update_statut(save=True)
         messages.success(self.request, "Examen créé (statut : INITIÉ).")
-        return resp
+        return response
+
+    def get_success_url(self):
+        return build_url(
+            "exams:exam_list",
+            year=self.object.session.formation.annee_universitaire_id,
+            formation=self.object.session.formation_id,
+            session=self.object.session_id,
+        )
 
 
 class ExamUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
     model = Examen
     form_class = ExamForm
     template_name = "exams/exam_form.html"
-    success_url = reverse_lazy("exams:exam_list")
 
     def get_queryset(self):
-        year = get_active_year(self.request)
-        if not year:
-            return Examen.objects.none()
-        return Examen.objects.filter(session__annee_universitaire=year)
+        return Examen.objects.all()
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
-        kwargs["active_year"] = get_active_year(self.request)
+        kwargs["active_year"] = self.object.session.formation.annee_universitaire
         return kwargs
 
     def form_valid(self, form):
-        resp = super().form_valid(form)
+        response = super().form_valid(form)
         self.object.update_statut(save=True)
         messages.success(self.request, "Examen mis à jour.")
-        return resp
+        return response
+
+    def get_success_url(self):
+        return build_url(
+            "exams:exam_list",
+            year=self.object.session.formation.annee_universitaire_id,
+            formation=self.object.session.formation_id,
+            session=self.object.session_id,
+        )
 
 
 class ExamDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
@@ -386,13 +526,16 @@ class ExamDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
     success_url = reverse_lazy("exams:exam_list")
 
     def get_queryset(self):
-        year = get_active_year(self.request)
-        if not year:
-            return Examen.objects.none()
-        return Examen.objects.filter(session__annee_universitaire=year)
+        return Examen.objects.all()
 
     def form_valid(self, form):
         self.object = self.get_object()
+        success_url = build_url(
+            "exams:exam_list",
+            year=self.object.session.formation.annee_universitaire_id,
+            formation=self.object.session.formation_id,
+            session=self.object.session_id,
+        )
         self.object.delete()
         messages.success(self.request, "Examen supprimé.")
-        return redirect(self.success_url)
+        return redirect(success_url)
