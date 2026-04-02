@@ -2,48 +2,49 @@
 {% block title %}UE — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">UE</h1>
-      <p class="page-subtitle">Gère les unités d'enseignement et leurs responsables.</p>
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">UE</h1>
+        <p class="page-subtitle">Gère les unités d'enseignement et leurs responsables.</p>
+      </div>
+      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+        <div class="page-header__actions">
+          <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Voir les UP</a>
+          <a class="btn btn--primary" href="{% url 'academics:ue_create' %}">Nouvelle UE</a>
+        </div>
+      {% endif %}
     </div>
-    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Voir les UP</a>
-        <a class="btn btn--primary" href="{% url 'academics:ue_create' %}">Nouvelle UE</a>
-      </div>
-    {% endif %}
-  </div>
 
-  <div class="card" style="margin-top:16px;">
-    {% if ues %}
-      <div style="display:grid; gap:16px;">
-        {% for ue in ues %}
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:600; font-size:16px;">{{ ue.nom }}</div>
-              <div class="card__meta">
-                Responsables :
-                {% for responsable in ue.responsables.all %}
-                  {{ responsable.username }}{% if not forloop.last %}, {% endif %}
-                {% empty %}
-                  Aucun
-                {% endfor %}
+    <div class="card section-card">
+      {% if ues %}
+        <div class="entity-list">
+          {% for ue in ues %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ ue.nom }}</div>
+                <div class="entity-row__meta">
+                  Responsables :
+                  {% for responsable in ue.responsables.all %}
+                    {{ responsable.display_full_name }}{% if not forloop.last %}, {% endif %}
+                  {% empty %}
+                    Aucun
+                  {% endfor %}
+                </div>
               </div>
+              {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                <div class="entity-row__actions">
+                  <a class="btn btn--soft" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
+                  <a class="btn btn--ghost" href="{% url 'academics:ue_delete' ue.pk %}">Supprimer</a>
+                </div>
+              {% endif %}
             </div>
-            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a class="btn btn--outline" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
-                <a class="btn btn--ghost" href="{% url 'academics:ue_delete' ue.pk %}">Supprimer</a>
-              </div>
-            {% endif %}
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune UE créée pour le moment.</p>
-    {% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune UE créée pour le moment.</p>
+      {% endif %}
+    </div>
+    {% include "includes/pagination.html" %}
   </div>
-  {% include "includes/pagination.html" %}
 {% endblock %}

@@ -1,5 +1,7 @@
 <nav class="nav">
   {% if user.is_authenticated %}
+    <div class="nav__spacer" aria-hidden="true"></div>
+
     <div class="nav__group">
       <a class="nav__item" href="{% url 'dashboard' %}">Tableau de bord</a>
       <a class="nav__item" href="{% url 'academics:annee_list' %}">Années universitaires</a>
@@ -16,6 +18,8 @@
       <button type="submit" class="nav__logout-btn">Déconnexion</button>
     </form>
   {% else %}
-    <a class="nav__item" href="{% url 'login' %}">Connexion</a>
+    <div class="nav__spacer" aria-hidden="true"></div>
+    <div class="nav__group"></div>
+    <a class="nav__item nav__item--auth" href="{% url 'login' %}">Connexion</a>
   {% endif %}
 </nav>

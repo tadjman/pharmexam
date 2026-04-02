@@ -2,45 +2,48 @@
 {% block title %}Années universitaires — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
       <h1 class="page-title">Années universitaires</h1>
       <p class="page-subtitle">Toutes les années référencées par l'application.</p>
-    </div>
-    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-      <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">Nouvelle année</a>
-    {% endif %}
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    {% if annees %}
-      <div style="display:grid; gap:18px;">
-        {% for annee in annees %}
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:700; font-size:18px;">{{ annee.nom }}</div>
-              <div class="card__meta">{{ annee.formation_count }} formation{% if annee.formation_count > 1 %}s{% endif %}</div>
-            </div>
-
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-              {% if annee.is_active %}
-                <span class="badge badge--success">Active</span>
-              {% elif user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-                <form method="post" action="{% url 'academics:annee_set_active' annee.pk %}">
-                  {% csrf_token %}
-                  <button class="btn btn--outline" type="submit">Définir comme active</button>
-                </form>
-              {% endif %}
-              <a class="btn btn--primary" href="{% url 'academics:annee_detail' annee.pk %}">Détails</a>
-            </div>
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
       </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune année universitaire créée pour le moment.</p>
-    {% endif %}
-  </div>
+      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+        <div class="page-header__actions">
+          <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">Nouvelle année</a>
+        </div>
+      {% endif %}
+    </div>
 
-  {% include "includes/pagination.html" %}
+    <div class="card section-card">
+      {% if annees %}
+        <div class="entity-list">
+          {% for annee in annees %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title entity-row__title--strong">{{ annee.nom }}</div>
+                <div class="entity-row__meta">{{ annee.formation_count }} formation{% if annee.formation_count > 1 %}s{% endif %}</div>
+              </div>
+
+              <div class="entity-row__actions">
+                {% if annee.is_active %}
+                  <span class="badge badge--success">Active</span>
+                {% elif user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                  <form method="post" action="{% url 'academics:annee_set_active' annee.pk %}">
+                    {% csrf_token %}
+                    <button class="btn btn--soft" type="submit">Définir comme active</button>
+                  </form>
+                {% endif %}
+                <a class="btn btn--outline" href="{% url 'academics:annee_detail' annee.pk %}">Détails</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune année universitaire créée pour le moment.</p>
+      {% endif %}
+    </div>
+
+    {% include "includes/pagination.html" %}
+  </div>
 {% endblock %}

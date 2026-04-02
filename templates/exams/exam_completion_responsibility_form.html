@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Responsabilités — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">Modifier les responsabilités</h1>
+        <p class="page-subtitle">{{ surveillance.surveillant.display_full_name }} · {{ surveillance.affectation_salle.salle.nom }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+    </div>
+
+    <div class="card exam-form-card">
+      <form method="post" novalidate class="exam-form-layout">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="flash flash--error">{{ form.non_field_errors }}</div>{% endif %}
+
+        <label class="form-check">
+          {{ form.is_responsable_general }}
+          <span class="form-check__text">Responsable d'épreuve</span>
+        </label>
+        {% if form.is_responsable_general.errors %}<div class="exam-error">{{ form.is_responsable_general.errors }}</div>{% endif %}
+
+        <label class="form-check">
+          {{ form.is_responsable_salle }}
+          <span class="form-check__text">Responsable de salle</span>
+        </label>
+        {% if form.is_responsable_salle.errors %}<div class="exam-error">{{ form.is_responsable_salle.errors }}</div>{% endif %}
+
+        <div class="exam-form-actions">
+          <button class="btn btn--soft" type="submit">Enregistrer</button>
+          <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

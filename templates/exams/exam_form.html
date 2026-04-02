@@ -2,82 +2,65 @@
 {% block title %}{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %}</h1>
-  <p class="page-subtitle">Choisis d'abord une session, puis complète l'examen avec l'UP et le responsable pédagogique adaptés à la formation.</p>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %}</h1>
+        <p class="page-subtitle">Choisis d'abord une session, puis rattache l'examen à l'UE portée par cette session.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour aux examens</a>
+    </div>
 
-  <div class="card" style="max-width:900px;">
-    <form method="post" novalidate>
+    <div class="card form-card form-card--wide">
+      <form method="post" novalidate class="form-layout">
       {% csrf_token %}
 
       {% if form.non_field_errors %}
         <div class="flash flash--error">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      <div style="display:grid; gap:16px;">
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Session</label>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Session</label>
           {{ form.session }}
-          {% if form.session.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.session.errors }}</div>{% endif %}
+          {% if form.session.errors %}<div class="form-error">{{ form.session.errors }}</div>{% endif %}
         </div>
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+        <div class="form-field">
+          <label class="form-label">Nom</label>
           {{ form.nom }}
-          {% if form.nom.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
+          {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
         </div>
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">UP</label>
-          {{ form.up }}
-          {% if form.up.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.up.errors }}</div>{% endif %}
-          <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">L'UP doit appartenir à une UE rattachée à la formation de la session choisie.</div>
-        </div>
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Responsable</label>
-          {{ form.responsable }}
-          {% if form.responsable.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.responsable.errors }}</div>{% endif %}
-          <div style="margin-top:8px; color:var(--text-secondary); font-size:14px;">Le responsable doit être parmi les responsables de l’UE ou de l’UP choisie.</div>
+        <div class="form-field">
+          <label class="form-label">UE</label>
+          {{ form.ue }}
+          {% if form.ue.errors %}<div class="form-error">{{ form.ue.errors }}</div>{% endif %}
+          <p class="form-help">L'UE doit appartenir à la formation de la session choisie.</p>
         </div>
 
-        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Nombre total d’élèves</label>
-            {{ form.nb_eleves }}
-            {% if form.nb_eleves.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nb_eleves.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Élèves tiers-temps</label>
-            {{ form.nb_eleves_tiers_temps }}
-            {% if form.nb_eleves_tiers_temps.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nb_eleves_tiers_temps.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Surveillants requis</label>
-            {{ form.nb_surveillants_requis }}
-            {% if form.nb_surveillants_requis.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nb_surveillants_requis.errors }}</div>{% endif %}
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Date</label>
+        <div class="form-grid form-grid--columns">
+          <div class="form-field">
+            <label class="form-label">Date</label>
             {{ form.date }}
-            {% if form.date.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.date.errors }}</div>{% endif %}
+            {% if form.date.errors %}<div class="form-error">{{ form.date.errors }}</div>{% endif %}
           </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Heure début</label>
+          <div class="form-field">
+            <label class="form-label">Heure début</label>
             {{ form.heure_debut }}
-            {% if form.heure_debut.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.heure_debut.errors }}</div>{% endif %}
+            {% if form.heure_debut.errors %}<div class="form-error">{{ form.heure_debut.errors }}</div>{% endif %}
           </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Heure fin</label>
+          <div class="form-field">
+            <label class="form-label">Heure fin</label>
             {{ form.heure_fin }}
-            {% if form.heure_fin.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.heure_fin.errors }}</div>{% endif %}
+            {% if form.heure_fin.errors %}<div class="form-error">{{ form.heure_fin.errors }}</div>{% endif %}
           </div>
         </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
-        <button class="btn btn--primary" type="submit">Enregistrer</button>
+      <div class="form-actions">
+        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
         <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
       </div>
     </form>
+    </div>
   </div>
 {% endblock %}

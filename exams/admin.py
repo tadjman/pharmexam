@@ -5,7 +5,7 @@ from .models import Examen, SessionExamen
 
 @admin.register(SessionExamen)
 class SessionExamenAdmin(admin.ModelAdmin):
-    list_display = ("nom", "formation", "get_annee", "date_debut", "date_fin")
+    list_display = ("nom", "formation", "get_annee")
     list_filter = ("formation__annee_universitaire", "formation")
     search_fields = ("nom", "formation__nom", "formation__annee_universitaire__nom")
     autocomplete_fields = ("formation",)
@@ -21,16 +21,15 @@ class ExamenAdmin(admin.ModelAdmin):
         "nom",
         "session",
         "get_formation",
-        "up",
-        "responsable",
+        "ue",
         "date",
         "heure_debut",
         "heure_fin",
         "statut",
     )
     list_filter = ("statut", "session__formation__annee_universitaire", "session__formation", "session")
-    search_fields = ("nom", "up__nom", "up__ue__nom", "responsable__username", "session__nom")
-    autocomplete_fields = ("session", "up", "responsable")
+    search_fields = ("nom", "ue__nom", "session__nom")
+    autocomplete_fields = ("session", "ue")
 
     @admin.display(ordering="session__formation", description="Formation")
     def get_formation(self, obj):

@@ -1,9 +1,9 @@
-from datetime import date, timedelta
 import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils.dateparse import parse_date
 
 
 class AnneeUniversitaire(models.Model):
@@ -16,6 +16,30 @@ class AnneeUniversitaire(models.Model):
     class Meta:
         ordering = ["-date_debut"]
 
+    @property
+    def generated_nom_base(self) -> str:
+        if not self.date_debut or not self.date_fin:
+            return ""
+        date_debut = parse_date(self.date_debut) if isinstance(self.date_debut, str) else self.date_debut
+        date_fin = parse_date(self.date_fin) if isinstance(self.date_fin, str) else self.date_fin
+        if not date_debut or not date_fin:
+            return ""
+        return f"{date_debut.year}/{date_fin.year}"
+
+    def generate_nom(self) -> str:
+        base = self.generated_nom_base
+        if not base:
+            return self.nom
+
+        siblings = AnneeUniversitaire.objects.exclude(pk=self.pk)
+        if not siblings.filter(nom=base).exists():
+            return base
+
+        suffix = 2
+        while siblings.filter(nom=f"{base} [{suffix}]").exists():
+            suffix += 1
+        return f"{base} [{suffix}]"
+
     def clean(self):
         if self.date_debut and self.date_fin and self.date_fin <= self.date_debut:
             raise ValidationError(
@@ -23,6 +47,8 @@ class AnneeUniversitaire(models.Model):
             )
 
     def save(self, *args, **kwargs):
+        if self.date_debut and self.date_fin:
+            self.nom = self.generate_nom()
         self.full_clean()
         super().save(*args, **kwargs)
         if self.is_active:
@@ -81,36 +107,13 @@ class Formation(models.Model):
         unique_together = [("annee_universitaire", "nom")]
         ordering = ["nom"]
 
-    def _default_session_periods(self):
-        year = self.annee_universitaire
-        start = year.date_debut
-        end = year.date_fin
-        total_days = max(1, (end - start).days + 1)
-        first_block = total_days // 3
-        second_block = (total_days * 2) // 3
-
-        first_end = start + timedelta(days=max(0, first_block - 1))
-        second_start = first_end + timedelta(days=1)
-        second_end = start + timedelta(days=max(0, second_block - 1))
-        third_start = second_end + timedelta(days=1)
-
-        return [
-            ("Semestre 1", start, min(first_end, end)),
-            ("Semestre 2", min(second_start, end), min(second_end, end)),
-            ("Rattrapages", min(third_start, end), end),
-        ]
-
     def create_default_sessions(self):
         from exams.models import SessionExamen
 
-        for nom, date_debut, date_fin in self._default_session_periods():
+        for nom in ["Semestre 1", "Semestre 2", "Rattrapages"]:
             SessionExamen.objects.get_or_create(
                 formation=self,
                 nom=nom,
-                defaults={
-                    "date_debut": date_debut,
-                    "date_fin": date_fin,
-                },
             )
 
     def save(self, *args, **kwargs):

@@ -5,12 +5,13 @@ from .models import AffectationSalle, Salle
 
 @admin.register(Salle)
 class SalleAdmin(admin.ModelAdmin):
-    list_display = ("nom", "capacite_max", "heure_deverrouillage", "heure_verrouillage")
+    list_display = ("nom",)
     search_fields = ("nom",)
+    fields = ("nom",)
 
 
 @admin.register(AffectationSalle)
 class AffectationSalleAdmin(admin.ModelAdmin):
-    list_display = ("examen", "salle", "is_tiers_temps", "capacite_reservee")
-    list_filter = ("is_tiers_temps",)
+    list_display = ("examen", "salle", "temps_majore", "nb_surveillants_requis")
+    list_filter = ("temps_majore",)
     search_fields = ("examen__nom", "salle__nom")

@@ -22,6 +22,10 @@ from django.contrib.auth import views as auth_views
 
 from .views import TableauDeBordView
 
+admin.site.site_header = "Administration Pharmexam"
+admin.site.site_title = "Pharmexam Admin"
+admin.site.index_title = "Gestion technique"
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),

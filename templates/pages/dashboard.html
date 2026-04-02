@@ -2,94 +2,146 @@
 {% block title %}Tableau de bord — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-    <h1 class="page-title" style="margin:0;">Tableau de bord</h1>
-    {% if active_year %}
-      <span class="badge badge--info">{{ active_year.nom }}</span>
-    {% endif %}
-  </div>
-  <p class="page-subtitle">Vue d'ensemble de l'année active et du parcours opérationnel formation → session → examen.</p>
-
-  <div class="grid">
-    <div class="card"><h2 class="card__title">Années</h2><p class="card__meta"><strong>{{ kpis.years }}</strong> année{% if kpis.years > 1 %}s{% endif %}</p></div>
-    <div class="card"><h2 class="card__title">Formations</h2><p class="card__meta"><strong>{{ kpis.formations }}</strong> formation{% if kpis.formations > 1 %}s{% endif %} sur l'année active</p></div>
-    <div class="card"><h2 class="card__title">Sessions</h2><p class="card__meta"><strong>{{ kpis.sessions }}</strong> session{% if kpis.sessions > 1 %}s{% endif %}</p></div>
-    <div class="card"><h2 class="card__title">Examens</h2><p class="card__meta"><strong>{{ kpis.exams }}</strong> examen{% if kpis.exams > 1 %}s{% endif %}</p></div>
-    <div class="card"><h2 class="card__title">Surveillances</h2><p class="card__meta"><strong>{{ kpis.surveillances }}</strong> inscription{% if kpis.surveillances > 1 %}s{% endif %}</p></div>
-    <div class="card"><h2 class="card__title">Taux de complétion</h2><p class="card__meta"><strong>{{ kpis.completion_rate }}%</strong> d'examens complets</p></div>
-  </div>
-
-  <div class="grid" style="margin-top:16px;">
-    <div class="card">
-      <h2 class="card__title">Parcours actif</h2>
-      {% if formations %}
-        <div style="display:grid; gap:10px; margin-top:12px;">
-          {% for formation in formations %}
-            <div style="padding:10px 12px; background:rgba(138, 21, 56, 0.04); border-radius:8px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center;">
-              <div>
-                <strong style="color:var(--text);">{{ formation.nom }}</strong><br>
-                <span class="card__meta">{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %} · {{ formation.exam_count }} examen{% if formation.exam_count > 1 %}s{% endif %}</span>
-              </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a class="btn btn--outline" href="{% url 'exams:session_list' %}?formation={{ formation.pk }}">Sessions</a>
-                <a class="btn btn--primary" href="{% url 'exams:exam_list' %}?formation={{ formation.pk }}">Examens</a>
-              </div>
-            </div>
-          {% endfor %}
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <div class="action-row">
+          <h1 class="page-title">Tableau de bord</h1>
+          {% if active_year %}
+            <span class="badge badge--info">{{ active_year.nom }}</span>
+          {% endif %}
         </div>
-      {% else %}
-        <p class="card__meta">Aucune formation disponible pour l'année active.</p>
-      {% endif %}
-    </div>
-
-    <div class="card">
-      <h2 class="card__title">Statuts examens</h2>
-      <div style="display:grid; gap:10px;">
-        <div class="card__meta"><span class="badge">INITIÉ</span> {{ kpis.initie }}</div>
-        <div class="card__meta"><span class="badge badge--warning">INCOMPLET</span> {{ kpis.incomplete }}</div>
-        <div class="card__meta"><span class="badge badge--success">COMPLET</span> {{ kpis.complete }}</div>
-        <div class="card__meta"><span class="badge badge--info">TERMINÉ</span> {{ kpis.termine }}</div>
+        <p class="page-subtitle">Vue d'ensemble de l'année active et du parcours opérationnel formation → session → examen.</p>
       </div>
     </div>
 
-    <div class="card">
-      <h2 class="card__title">Salles</h2>
-      <p class="card__meta"><strong>{{ kpis.rooms }}</strong> salle{% if kpis.rooms > 1 %}s{% endif %} référencée{% if kpis.rooms > 1 %}s{% endif %}</p>
-      <div style="margin-top:16px;"><a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Gérer les salles</a></div>
+    <div class="grid">
+      <div class="card">
+        <h2 class="card__title">Années</h2>
+        <span class="kpi-card__value">{{ kpis.years }}</span>
+        <p class="card__meta">année{% if kpis.years > 1 %}s{% endif %}</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">Formations</h2>
+        <span class="kpi-card__value">{{ kpis.formations }}</span>
+        <p class="card__meta">formation{% if kpis.formations > 1 %}s{% endif %} sur l'année active</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">Sessions</h2>
+        <span class="kpi-card__value">{{ kpis.sessions }}</span>
+        <p class="card__meta">session{% if kpis.sessions > 1 %}s{% endif %}</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">Examens</h2>
+        <span class="kpi-card__value">{{ kpis.exams }}</span>
+        <p class="card__meta">examen{% if kpis.exams > 1 %}s{% endif %}</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">Surveillances</h2>
+        <span class="kpi-card__value">{{ kpis.surveillances }}</span>
+        <p class="card__meta">inscription{% if kpis.surveillances > 1 %}s{% endif %}</p>
+      </div>
+      <div class="card">
+        <h2 class="card__title">Taux de complétion</h2>
+        <span class="kpi-card__value">{{ kpis.completion_rate }}%</span>
+        <p class="card__meta">d'examens complets</p>
+      </div>
     </div>
-  </div>
 
-  <div class="grid" style="margin-top:16px;">
-    <div class="card">
-      <h2 class="card__title">Examens à compléter</h2>
-      {% if incomplete_exams %}
-        <div style="display:grid; gap:10px;">
-          {% for exam in incomplete_exams %}
-            <a href="{% url 'exams:exam_complete' exam.pk %}" class="card__meta" style="padding:10px 12px; background:rgba(245, 158, 11, 0.08); border-radius:8px;">
-              <strong style="color:var(--text);">{{ exam.nom }}</strong><br>
-              {{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}
-            </a>
-          {% endfor %}
+    <div class="grid">
+      <div class="card section-card">
+        <div class="section-card__title">
+          <h2 class="card__title">Parcours actif</h2>
+          <p class="card__meta">Accès rapide aux formations de l'année active.</p>
         </div>
-      {% else %}
-        <p class="card__meta">Aucun examen à compléter.</p>
-      {% endif %}
+        {% if formations %}
+          <div class="soft-list">
+            {% for formation in formations %}
+              <div class="soft-item">
+                <div class="entity-row" style="padding:0;">
+                  <div class="entity-row__main">
+                    <div class="entity-row__title">{{ formation.nom }}</div>
+                    <div class="entity-row__meta">
+                      <span>{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %}</span>
+                      <span>·</span>
+                      <span>{{ formation.exam_count }} examen{% if formation.exam_count > 1 %}s{% endif %}</span>
+                    </div>
+                  </div>
+                  <div class="entity-row__actions">
+                    <a class="btn btn--outline" href="{% url 'exams:session_list' %}?formation={{ formation.pk }}">Sessions</a>
+                    <a class="btn btn--outline" href="{% url 'exams:exam_list' %}?formation={{ formation.pk }}">Examens</a>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="card__meta">Aucune formation disponible pour l'année active.</p>
+        {% endif %}
+      </div>
+
+      <div class="card section-card">
+        <div class="section-card__title">
+          <h2 class="card__title">Statuts examens</h2>
+          <p class="card__meta">Répartition instantanée des examens de l'année active.</p>
+        </div>
+        <div class="soft-list">
+          <div class="soft-item"><p class="soft-item__meta"><span class="badge">INITIÉ</span> {{ kpis.initie }}</p></div>
+          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--warning">INCOMPLET</span> {{ kpis.incomplete }}</p></div>
+          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--success">COMPLET</span> {{ kpis.complete }}</p></div>
+          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--info">TERMINÉ</span> {{ kpis.termine }}</p></div>
+        </div>
+      </div>
+
+      <div class="card section-card">
+        <div class="section-card__title">
+          <h2 class="card__title">Salles</h2>
+          <p class="card__meta">{{ kpis.rooms }} salle{% if kpis.rooms > 1 %}s{% endif %} référencée{% if kpis.rooms > 1 %}s{% endif %}</p>
+        </div>
+        <div class="action-row">
+          <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Gérer les salles</a>
+        </div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2 class="card__title">Prochains examens</h2>
-      {% if upcoming_exams %}
-        <div style="display:grid; gap:10px;">
-          {% for exam in upcoming_exams %}
-            <a href="{% url 'exams:exam_detail' exam.pk %}" class="card__meta" style="padding:10px 12px; background:rgba(59, 130, 246, 0.06); border-radius:8px;">
-              <strong style="color:var(--text);">{{ exam.nom }}</strong><br>
-              {{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}
-            </a>
-          {% endfor %}
+    <div class="grid">
+      <div class="card section-card">
+        <div class="section-card__title">
+          <h2 class="card__title">Examens à compléter</h2>
+          <p class="card__meta">Priorités de complétion à traiter.</p>
         </div>
-      {% else %}
-        <p class="card__meta">Aucun examen à venir.</p>
-      {% endif %}
+        {% if incomplete_exams %}
+          <div class="soft-list">
+            {% for exam in incomplete_exams %}
+              <a href="{% url 'exams:exam_complete' exam.pk %}" class="soft-item soft-item--warning">
+                <p class="soft-item__title">{{ exam.nom }}</p>
+                <p class="soft-item__meta">{{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}</p>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="card__meta">Aucun examen à compléter.</p>
+        {% endif %}
+      </div>
+
+      <div class="card section-card">
+        <div class="section-card__title">
+          <h2 class="card__title">Prochains examens</h2>
+          <p class="card__meta">Vue rapide des prochaines échéances.</p>
+        </div>
+        {% if upcoming_exams %}
+          <div class="soft-list">
+            {% for exam in upcoming_exams %}
+              <a href="{% url 'exams:exam_detail' exam.pk %}" class="soft-item soft-item--info">
+                <p class="soft-item__title">{{ exam.nom }}</p>
+                <p class="soft-item__meta">{{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}</p>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="card__meta">Aucun examen à venir.</p>
+        {% endif %}
+      </div>
     </div>
   </div>
 {% endblock %}

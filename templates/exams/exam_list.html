@@ -2,102 +2,108 @@
 {% block title %}Examens — Pharmexam{% endblock %}
 
 {% block content %}
-  <div>
-    <h1 class="page-title">Examens</h1>
-    <p class="page-subtitle">Choisis une année universitaire, puis une formation, puis une session.</p>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <form id="exam-scope-form" method="get" style="display:grid; gap:16px;">
-      <div style="display:grid; gap:12px;">
-        <div style="min-width:280px;">
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une année universitaire</label>
-          <select id="year-select" name="year" class="input">
-            {% for year in years %}
-              <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div style="min-width:280px;">
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une formation</label>
-          <select id="formation-select" name="formation" class="input" {% if not selected_year %}disabled{% endif %}>
-            <option value="">Choisir une formation</option>
-            {% for formation in formations %}
-              <option value="{{ formation.pk }}" {% if selected_formation == formation.pk|stringformat:"s" %}selected{% endif %}>{{ formation.nom }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div style="min-width:280px;">
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Sélectionnez une session</label>
-          <select id="session-select" name="session" class="input" {% if not selected_formation %}disabled{% endif %}>
-            <option value="">Choisir une session</option>
-            {% for session in sessions %}
-              <option value="{{ session.pk }}" {% if selected_session == session.pk|stringformat:"s" %}selected{% endif %}>{{ session.nom }}</option>
-            {% endfor %}
-          </select>
-        </div>
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">Examens</h1>
+        <p class="page-subtitle">Choisis une année universitaire, puis une formation, puis une session.</p>
       </div>
-
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        {% if selected_session_obj %}
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <a class="btn btn--primary" href="{{ new_exam_url }}">Nouvel examen</a>
-          </div>
-        {% endif %}
-      {% endif %}
-    </form>
-  </div>
-
-  {% if selected_session_obj %}
-    <div class="card" style="margin-top:16px;">
-      <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:flex-end;">
-        <div>
-          <h2 class="card__title" style="margin-bottom:6px;">Examens</h2>
-          <p class="card__meta">{{ selected_year.nom }} · {{ selected_formation_obj.nom }} · {{ selected_session_obj.nom }}</p>
+        <div class="page-header__actions">
+          <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Gérer les salles</a>
         </div>
-      </div>
-
-      {% if examens %}
-        <div style="display:grid; gap:16px; margin-top:16px;">
-          {% for examen in examens %}
-            <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
-              <div>
-                <div style="font-weight:600; font-size:16px;">{{ examen.nom }}</div>
-                <div class="card__meta">Statut :</div>
-                {% if examen.statut == "COMPLET" %}
-                  <span class="badge badge--success">Complet</span>
-                {% elif examen.statut == "INCOMPLET" %}
-                  <span class="badge badge--warning">Incomplet</span>
-                {% elif examen.statut == "TERMINE" %}
-                  <span class="badge badge--info">Terminé</span>
-                {% else %}
-                  <span class="badge">Initié</span>
-                {% endif %}
-              </div>
-
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-                  {% if examen.statut == "INITIE" or examen.statut == "INCOMPLET" %}
-                    <a class="btn btn--primary" href="{% url 'exams:exam_complete' examen.pk %}">Compléter</a>
-                  {% else %}
-                    <a class="btn btn--outline" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
-                  {% endif %}
-                {% else %}
-                  <a class="btn btn--outline" href="{% url 'exams:exam_detail' examen.pk %}">Voir</a>
-                {% endif %}
-              </div>
-            </div>
-            {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="page-subtitle" style="margin:16px 0 0;">Aucun examen n'est encore rattaché à cette session.</p>
       {% endif %}
     </div>
-    {% include "includes/pagination.html" %}
-  {% endif %}
+
+    <div class="card">
+      <form id="exam-scope-form" method="get" class="selector-form">
+        <div class="selector-grid">
+          <div class="selector-field">
+            <label class="selector-label">Sélectionnez une année universitaire</label>
+            <select id="year-select" name="year" class="input">
+              {% for year in years %}
+                <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="selector-field">
+            <label class="selector-label">Sélectionnez une formation</label>
+            <select id="formation-select" name="formation" class="input" {% if not selected_year %}disabled{% endif %}>
+              <option value="">Choisir une formation</option>
+              {% for formation in formations %}
+                <option value="{{ formation.pk }}" {% if selected_formation == formation.pk|stringformat:"s" %}selected{% endif %}>{{ formation.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="selector-field">
+            <label class="selector-label">Sélectionnez une session</label>
+            <select id="session-select" name="session" class="input" {% if not selected_formation %}disabled{% endif %}>
+              <option value="">Choisir une session</option>
+              {% for session in sessions %}
+                <option value="{{ session.pk }}" {% if selected_session == session.pk|stringformat:"s" %}selected{% endif %}>{{ session.nom }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+          {% if selected_session_obj %}
+            <div class="action-row">
+              <a class="btn btn--primary" href="{{ new_exam_url }}">Nouvel examen</a>
+            </div>
+          {% endif %}
+        {% endif %}
+      </form>
+    </div>
+
+    {% if selected_session_obj %}
+      <div class="card section-card">
+        <div class="section-card__header">
+          <div class="section-card__title">
+            <h2 class="card__title">Examens</h2>
+            <p class="card__meta">{{ selected_year.nom }} · {{ selected_formation_obj.nom }} · {{ selected_session_obj.nom }}</p>
+          </div>
+        </div>
+
+        {% if examens %}
+          <div class="entity-list">
+            {% for examen in examens %}
+              <div class="entity-row">
+                <div class="entity-row__main">
+                  <div class="entity-row__title">{{ examen.nom }}</div>
+                  <div class="entity-row__meta">
+                    {% if examen.statut == "COMPLET" %}
+                      <span class="badge badge--success">Complet</span>
+                    {% elif examen.statut == "INCOMPLET" %}
+                      <span class="badge badge--warning">Incomplet</span>
+                    {% elif examen.statut == "TERMINE" %}
+                      <span class="badge badge--info">Terminé</span>
+                    {% else %}
+                      <span class="badge">Initié</span>
+                    {% endif %}
+                  </div>
+                </div>
+
+                <div class="entity-row__actions">
+                  {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                    <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter</a>
+                    <a class="btn btn--accent" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
+                  {% else %}
+                    <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Inscription</a>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="page-subtitle" style="margin:0;">Aucun examen n'est encore rattaché à cette session.</p>
+        {% endif %}
+      </div>
+      {% include "includes/pagination.html" %}
+    {% endif %}
+  </div>
 
   {{ formations_payload|json_script:"formations-data" }}
   {{ sessions_payload|json_script:"sessions-data" }}

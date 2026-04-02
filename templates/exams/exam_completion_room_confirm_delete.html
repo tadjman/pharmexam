@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Supprimer la salle — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">Supprimer la salle</h1>
+        <p class="page-subtitle">{{ examen.nom }} · {{ affectation.salle.nom }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+    </div>
+
+    <div class="card exam-form-card">
+      {% if has_surveillances %}
+        <p class="page-subtitle" style="margin-bottom:0;">Suppression impossible : désinscris d'abord tous les surveillants de cette salle.</p>
+      {% else %}
+        <p class="page-subtitle">Confirme la suppression de <strong>{{ affectation.salle.nom }}</strong> pour l'examen <strong>{{ examen.nom }}</strong>.</p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="exam-form-actions">
+            <button class="btn btn--ghost" type="submit">Supprimer la salle</button>
+            <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

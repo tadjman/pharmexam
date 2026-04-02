@@ -2,41 +2,48 @@
 {% block title %}{{ formation.nom }} — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">{{ formation.nom }}</h1>
-      <p class="page-subtitle">{{ formation.annee_universitaire.nom }} · {{ session_count }} session{% if session_count > 1 %}s{% endif %} d'examens</p>
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">{{ formation.nom }}</h1>
+        <p class="page-subtitle">{{ formation.annee_universitaire.nom }} · {{ session_count }} session{% if session_count > 1 %}s{% endif %} d'examens</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour aux formations</a>
+        <a class="btn btn--outline" href="{% url 'exams:exam_list' %}?year={{ formation.annee_universitaire_id }}&formation={{ formation.pk }}">Voir les examens</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+          <a class="btn btn--soft" href="{% url 'academics:formation_update' formation.pk %}">Modifier</a>
+        {% endif %}
+      </div>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour aux formations</a>
-      <a class="btn btn--ghost" href="{% url 'exams:exam_list' %}?year={{ formation.annee_universitaire_id }}&formation={{ formation.pk }}">Voir les examens</a>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <a class="btn btn--primary" href="{% url 'academics:formation_update' formation.pk %}">Modifier</a>
+
+    <div class="card section-card">
+      <div class="section-card__title">
+        <h2 class="card__title">UE de la formation</h2>
+      </div>
+      {% if ues %}
+        <div class="entity-list">
+          {% for ue in ues %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ ue.nom }}</div>
+                <div class="entity-row__meta">
+                  <span>Responsables :</span>
+                  <span>
+                    {% for responsable in ue.responsables.all %}
+                      {{ responsable.display_full_name }}{% if not forloop.last %}, {% endif %}
+                    {% empty %}
+                      Aucun responsable
+                    {% endfor %}
+                  </span>
+                </div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune UE n'est encore rattachée à cette formation.</p>
       {% endif %}
     </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h2 class="card__title">UE de la formation</h2>
-    {% if ues %}
-      <div style="display:grid; gap:16px; margin-top:16px;">
-        {% for ue in ues %}
-          <div>
-            <div style="font-weight:600; font-size:16px;">{{ ue.nom }}</div>
-            <div class="card__meta">
-              Responsables :
-              {% for responsable in ue.responsables.all %}
-                {{ responsable.username }}{% if not forloop.last %}, {% endif %}
-              {% empty %}
-                Aucun responsable
-              {% endfor %}
-            </div>
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune UE n'est encore rattachée à cette formation.</p>
-    {% endif %}
   </div>
 {% endblock %}

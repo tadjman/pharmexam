@@ -1,9 +1,8 @@
 from django import forms
 from django.db.models import Q
 
-from academics.models import Formation, UP
-from accounts.models import RoleUtilisateur, User
-from assignments.models import Surveillance
+from academics.models import Formation, UE
+from accounts.models import RoleUtilisateur
 from rooms.models import AffectationSalle, Salle
 
 from .models import Examen, SessionExamen
@@ -12,11 +11,7 @@ from .models import Examen, SessionExamen
 class SessionForm(forms.ModelForm):
     class Meta:
         model = SessionExamen
-        fields = ["formation", "nom", "date_debut", "date_fin"]
-        widgets = {
-            "date_debut": forms.DateInput(attrs={"type": "date", "class": "input"}),
-            "date_fin": forms.DateInput(attrs={"type": "date", "class": "input"}),
-        }
+        fields = ["formation", "nom"]
 
     def __init__(self, *args, **kwargs):
         active_year = kwargs.pop("active_year", None)
@@ -39,11 +34,7 @@ class ExamForm(forms.ModelForm):
         fields = [
             "session",
             "nom",
-            "up",
-            "responsable",
-            "nb_eleves",
-            "nb_eleves_tiers_temps",
-            "nb_surveillants_requis",
+            "ue",
             "date",
             "heure_debut",
             "heure_fin",
@@ -63,15 +54,12 @@ class ExamForm(forms.ModelForm):
 
         sessions_qs = SessionExamen.objects.none()
         if active_year is not None:
-            sessions_qs = SessionExamen.objects.select_related("formation").filter(
+            sessions_qs = SessionExamen.ordered_queryset(
+                SessionExamen.objects.select_related("formation").filter(
                 formation__annee_universitaire=active_year
-            ).order_by("formation__nom", "-date_debut", "nom")
+                )
+            )
         self.fields["session"].queryset = sessions_qs
-
-        self.fields["responsable"].queryset = User.objects.filter(
-            role__in=[RoleUtilisateur.SCOLARITE, RoleUtilisateur.ENSEIGNANT],
-            is_active=True,
-        ).order_by("username")
 
         selected_session = None
         session_id = self.data.get("session") or self.initial.get("session")
@@ -80,18 +68,18 @@ class ExamForm(forms.ModelForm):
         if session_id:
             selected_session = sessions_qs.filter(pk=session_id).first() or SessionExamen.objects.filter(pk=session_id).first()
 
-        ups_qs = UP.objects.select_related("ue").order_by("ue__nom", "nom")
+        ues_qs = UE.objects.order_by("nom")
         if selected_session is not None:
-            ups_qs = ups_qs.filter(ue__formations=selected_session.formation)
+            ues_qs = ues_qs.filter(formations=selected_session.formation)
         elif active_year is not None:
-            ups_qs = ups_qs.filter(ue__formations__annee_universitaire=active_year)
-        self.fields["up"].queryset = ups_qs.distinct()
+            ues_qs = ues_qs.filter(formations__annee_universitaire=active_year)
+        self.fields["ue"].queryset = ues_qs.distinct()
 
 
 class ExamCompletionRoomForm(forms.ModelForm):
     class Meta:
         model = AffectationSalle
-        fields = ["salle", "is_tiers_temps", "capacite_reservee"]
+        fields = ["salle", "temps_majore", "nb_surveillants_requis"]
 
     def __init__(self, *args, **kwargs):
         self.examen = kwargs.pop("examen")
@@ -119,29 +107,58 @@ class ExamCompletionRoomForm(forms.ModelForm):
         return obj
 
 
-class ExamCompletionSurveillanceForm(forms.ModelForm):
-    class Meta:
-        model = Surveillance
-        fields = ["surveillant"]
+class SelfRoomRegistrationForm(forms.Form):
+    is_responsable_general = forms.BooleanField(required=False)
+    is_responsable_salle = forms.BooleanField(required=False)
 
     def __init__(self, *args, **kwargs):
-        self.examen = kwargs.pop("examen")
+        general_available = kwargs.pop("general_available", True)
+        room_available = kwargs.pop("room_available", True)
         super().__init__(*args, **kwargs)
-        self.fields["surveillant"].queryset = User.objects.filter(
-            role__in=[RoleUtilisateur.MEMBRE_POOL, RoleUtilisateur.ENSEIGNANT],
-            is_active=True,
-        ).order_by("username")
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "input")
+        if not general_available:
+            self.fields["is_responsable_general"].disabled = True
+        if not room_available:
+            self.fields["is_responsable_salle"].disabled = True
 
-    def clean(self):
-        cleaned_data = super().clean()
-        self.instance.examen = self.examen
-        return cleaned_data
 
-    def save(self, commit=True):
-        obj = super().save(commit=False)
-        obj.examen = self.examen
-        if commit:
-            obj.save()
-        return obj
+class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150)
+    email = forms.EmailField()
+
+    field_order = [
+        "first_name",
+        "last_name",
+        "email",
+        "is_responsable_general",
+        "is_responsable_salle",
+    ]
+
+
+class AdminNewUserRoleChoiceForm(forms.Form):
+    first_name = forms.CharField(widget=forms.HiddenInput())
+    last_name = forms.CharField(widget=forms.HiddenInput())
+    email = forms.EmailField(widget=forms.HiddenInput())
+    is_responsable_general = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    is_responsable_salle = forms.BooleanField(required=False, widget=forms.HiddenInput())
+    role = forms.ChoiceField(
+        choices=RoleUtilisateur.choices,
+        widget=forms.RadioSelect,
+        initial=RoleUtilisateur.MEMBRE_POOL,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["role"].widget.attrs.setdefault("class", "responsable-picker")
+
+
+class SurveillanceResponsibilityForm(forms.Form):
+    is_responsable_general = forms.BooleanField(required=False)
+    is_responsable_salle = forms.BooleanField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.setdefault("class", "input")

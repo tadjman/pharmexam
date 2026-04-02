@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">{{ page_title }}</h1>
+        <p class="page-subtitle">{{ examen.session.formation.nom }} · {{ examen.session.nom }} · {{ examen.nom }}</p>
+        <p class="card__meta" style="margin-top:8px;">
+          Le verrouillage de la salle sera calé automatiquement sur le créneau de l'examen, avec prolongation d'un tiers du temps si la salle est en temps majoré.
+        </p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+    </div>
+
+    <div class="card exam-form-card">
+      <form method="post" novalidate class="exam-form-layout">
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="flash flash--error">{{ form.non_field_errors }}</div>{% endif %}
+
+        <div>
+          <label class="exam-label">Salle</label>
+          {{ form.salle }}
+          {% if form.salle.errors %}<div class="exam-error">{{ form.salle.errors }}</div>{% endif %}
+        </div>
+
+        <div>
+          <label class="exam-label">Surveillants requis</label>
+          {{ form.nb_surveillants_requis }}
+          {% if form.nb_surveillants_requis.errors %}<div class="exam-error">{{ form.nb_surveillants_requis.errors }}</div>{% endif %}
+        </div>
+
+        <label class="form-check">
+          {{ form.temps_majore }}
+          <span class="form-check__text">Temps majoré</span>
+        </label>
+        {% if form.temps_majore.errors %}<div class="exam-error">{{ form.temps_majore.errors }}</div>{% endif %}
+
+        <div class="exam-form-actions">
+          <button class="btn {% if affectation %}btn--soft{% else %}btn--primary{% endif %}" type="submit">{{ submit_label }}</button>
+          <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

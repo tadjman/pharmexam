@@ -2,62 +2,65 @@
 {% block title %}Suivi — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">Suivi des surveillances</h1>
-      <p class="page-subtitle">{% if active_year %}Année active : <strong>{{ active_year.nom }}</strong>{% endif %}</p>
-    </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn btn--ghost" href="{% url 'reports:export_center' %}">Centre d'exports</a>
-      <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <p class="page-subtitle" style="margin:0;">
-      Vue synthétique de l'année active. Les exports détaillés par formation et session restent disponibles depuis le centre d'exports.
-    </p>
-  </div>
-
-  <div class="grid" style="margin-top:16px;">
-    <div class="card"><h2 class="card__title">Utilisateurs</h2><p class="card__meta">{{ totals.users }}</p></div>
-    <div class="card"><h2 class="card__title">Examens surveillés</h2><p class="card__meta">{{ totals.exam_count }}</p></div>
-    <div class="card"><h2 class="card__title">Heures totales</h2><p class="card__meta">{{ totals.hours_display }}</p></div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    {% if rows %}
-      <div style="display:grid; gap:16px;">
-        {% for row in rows %}
-          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
-            <div>
-              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:600; font-size:16px;">{{ row.user.username }}</span>
-                <span class="badge">{{ row.user.get_role_display }}</span>
-              </div>
-              <div class="card__meta">{{ row.user.first_name }} {{ row.user.last_name }}</div>
-              {% if row.exam_details %}
-                <div style="display:grid; gap:8px; margin-top:12px;">
-                  {% for exam in row.exam_details %}
-                    <div class="card__meta" style="padding:10px 12px; background:rgba(138, 21, 56, 0.04); border-radius:8px;">
-                      <strong style="color:var(--text);">{{ exam.name }}</strong><br>
-                      {{ exam.formation }} · {{ exam.session }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}
-                    </div>
-                  {% endfor %}
-                </div>
-              {% endif %}
-            </div>
-
-            <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
-              <div class="card__meta"><strong>{{ row.exam_count }}</strong> examen{% if row.exam_count > 1 %}s{% endif %}</div>
-              <div class="card__meta"><strong>{{ row.hours_display }}</strong></div>
-            </div>
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">Suivi des surveillances</h1>
+        <p class="page-subtitle">{% if active_year %}Année active : <strong>{{ active_year.nom }}</strong>{% endif %}</p>
       </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune donnée disponible pour l'année active.</p>
-    {% endif %}
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'reports:export_center' %}">Centre d'exports</a>
+        <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="page-subtitle" style="margin:0;">
+        Vue synthétique de l'année active. Les exports détaillés par formation et session restent disponibles depuis le centre d'exports.
+      </p>
+    </div>
+
+    <div class="grid">
+      <div class="card"><h2 class="card__title">Utilisateurs</h2><span class="kpi-card__value">{{ totals.users }}</span></div>
+      <div class="card"><h2 class="card__title">Examens surveillés</h2><span class="kpi-card__value">{{ totals.exam_count }}</span></div>
+      <div class="card"><h2 class="card__title">Heures totales</h2><span class="kpi-card__value">{{ totals.hours_display }}</span></div>
+    </div>
+
+    <div class="card section-card">
+      {% if rows %}
+        <div class="entity-list">
+          {% for row in rows %}
+            <div class="entity-row" style="align-items:flex-start;">
+              <div class="entity-row__main">
+                <div class="entity-row__meta">
+                  <span class="entity-row__title">{{ row.user.display_full_name }}</span>
+                  <span class="badge {% if row.user.role == 'ENSEIGNANT' %}badge--role-teacher{% elif row.user.role == 'SCOLARITE' %}badge--role-scolarite{% endif %}">
+                    {{ row.user.get_role_display }}
+                  </span>
+                </div>
+                <div class="card__meta">{{ row.user.display_contact }}</div>
+                {% if row.exam_details %}
+                  <div class="soft-list" style="margin-top:12px;">
+                    {% for exam in row.exam_details %}
+                      <div class="soft-item">
+                        <p class="soft-item__title">{{ exam.name }}</p>
+                        <p class="soft-item__meta">{{ exam.formation }} · {{ exam.session }} · {{ exam.room }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}</p>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <div class="entity-row__actions">
+                <span class="card__meta"><strong>{{ row.exam_count }}</strong> examen{% if row.exam_count > 1 %}s{% endif %}</span>
+                <span class="card__meta"><strong>{{ row.hours_display }}</strong></span>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune donnée disponible pour l'année active.</p>
+      {% endif %}
+    </div>
   </div>
 {% endblock %}

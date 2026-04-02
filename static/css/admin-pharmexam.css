@@ -1,0 +1,84 @@
+:root {
+  --admin-primary: #8A1538;
+  --admin-primary-dark: #6B0F2A;
+  --admin-border: #E5E5E5;
+  --admin-text: #1A1A1A;
+  --admin-muted: #666666;
+}
+
+#header {
+  background: linear-gradient(135deg, var(--admin-primary), var(--admin-primary-dark));
+  color: #fff;
+}
+
+#header a:link,
+#header a:visited {
+  color: #fff;
+}
+
+.divider {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.admin-pharmexam-brand {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.admin-pharmexam-brand p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.admin-pharmexam-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.12);
+  color: #fff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.admin-pharmexam-link:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: rgba(138, 21, 56, 0.08);
+  color: var(--admin-text);
+}
+
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+a.button {
+  background: var(--admin-primary);
+}
+
+.button.default,
+input[type=submit].default,
+.submit-row input.default {
+  background: var(--admin-primary-dark);
+}
+
+#nav-sidebar .current-model {
+  background: rgba(138, 21, 56, 0.08);
+}
+
+@media (max-width: 767px) {
+  .admin-pharmexam-brand {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Créer et inscrire un utilisateur — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">Créer et inscrire un utilisateur</h1>
+        <p class="page-subtitle">{{ examen.nom }} · {{ affectation.salle.nom }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Retour au formulaire</a>
+    </div>
+
+    <div class="card exam-form-card">
+      <form method="post" novalidate class="exam-form-layout">
+        {% csrf_token %}
+        <input type="hidden" name="confirm_new_user" value="1">
+        {{ confirmation_form.first_name }}
+        {{ confirmation_form.last_name }}
+        {{ confirmation_form.email }}
+        {{ confirmation_form.is_responsable_general }}
+        {{ confirmation_form.is_responsable_salle }}
+
+        {% if confirmation_form.non_field_errors %}
+          <div class="flash flash--error">{{ confirmation_form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="soft-item">
+          <p class="soft-item__title">Nouvel utilisateur détecté</p>
+          <p class="soft-item__meta">
+            {{ new_user_preview.first_name }}
+            {{ new_user_preview.last_name }}
+            ·
+            {{ new_user_preview.email }}
+          </p>
+        </div>
+
+        <p class="page-subtitle" style="margin:0;">
+          Aucun compte existant n'a été trouvé avec cette adresse email. Choisis le rôle à attribuer avant de créer puis inscrire cet utilisateur à la salle.
+        </p>
+
+        <div class="form-field">
+          <label class="exam-label">Rôle du nouvel utilisateur</label>
+          <div class="responsable-picker">
+            {{ confirmation_form.role }}
+          </div>
+          {% if confirmation_form.role.errors %}<div class="exam-error">{{ confirmation_form.role.errors }}</div>{% endif %}
+        </div>
+
+        <div class="exam-form-actions">
+          <button class="btn btn--primary" type="submit">Créer et inscrire</button>
+          <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

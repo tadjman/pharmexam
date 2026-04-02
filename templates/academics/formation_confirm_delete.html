@@ -2,17 +2,24 @@
 {% block title %}Supprimer la formation — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Supprimer la formation</h1>
-  <p class="page-subtitle">Cette action est irréversible.</p>
-
-  <div class="card" style="max-width:720px;">
-    <p style="margin-top:0;">Confirmer la suppression de la formation <strong>{{ object.nom }}</strong> ?</p>
-    <form method="post">
-      {% csrf_token %}
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn--primary" type="submit">Supprimer</button>
-        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Annuler</a>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Supprimer la formation</h1>
+        <p class="page-subtitle">Cette action est irréversible.</p>
       </div>
-    </form>
+      <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour aux formations</a>
+    </div>
+
+    <div class="card form-card">
+      <div class="confirm-copy">
+        <p>Confirmer la suppression de la formation <strong>{{ object.nom }}</strong> ?</p>
+      </div>
+      <form method="post" class="form-actions">
+      {% csrf_token %}
+        <button class="btn btn--ghost" type="submit">Supprimer</button>
+        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Annuler</a>
+      </form>
+    </div>
   </div>
 {% endblock %}

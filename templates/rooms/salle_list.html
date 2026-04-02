@@ -2,44 +2,48 @@
 {% block title %}Salles — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">Salles</h1>
-      <p class="page-subtitle">Gestion des salles d'examen et de leurs capacités.</p>
-    </div>
-    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-      <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">Nouvelle salle</a>
-    {% endif %}
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    {% if salles %}
-      <div style="display:grid; gap:16px;">
-        {% for salle in salles %}
-          <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:600; font-size:16px;">{{ salle.nom }}</div>
-              <div class="card__meta">
-                Capacité max: {{ salle.capacite_max }}
-                {% if salle.heure_deverrouillage or salle.heure_verrouillage %}
-                  · Accès: {{ salle.heure_deverrouillage|default:"--:--" }} → {{ salle.heure_verrouillage|default:"--:--" }}
-                {% endif %}
-              </div>
-            </div>
-
-            {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a class="btn btn--outline" href="{% url 'rooms:salle_update' salle.pk %}">Modifier</a>
-                <a class="btn btn--ghost" href="{% url 'rooms:salle_delete' salle.pk %}">Supprimer</a>
-              </div>
-            {% endif %}
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">Salles</h1>
+        <p class="page-subtitle">Gestion des salles d'examen. Les périodes de verrouillage sont déterminées automatiquement par les examens affectés.</p>
       </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune salle disponible.</p>
-    {% endif %}
+      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+        <div class="page-header__actions">
+          <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">Nouvelle salle</a>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card section-card">
+      {% if salles %}
+        <div class="entity-list">
+          {% for salle in salles %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ salle.nom }}</div>
+                <div class="entity-row__meta">
+                  {% if salle.affectations_count %}
+                    {{ salle.affectations_count }} affectation{% if salle.affectations_count > 1 %}s{% endif %} en cours de gestion
+                  {% else %}
+                    Aucun examen affecté pour le moment
+                  {% endif %}
+                </div>
+              </div>
+
+              {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                <div class="entity-row__actions">
+                  <a class="btn btn--soft" href="{% url 'rooms:salle_update' salle.pk %}">Modifier</a>
+                  <a class="btn btn--ghost" href="{% url 'rooms:salle_delete' salle.pk %}">Supprimer</a>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune salle disponible.</p>
+      {% endif %}
+    </div>
+    {% include "includes/pagination.html" %}
   </div>
-  {% include "includes/pagination.html" %}
 {% endblock %}

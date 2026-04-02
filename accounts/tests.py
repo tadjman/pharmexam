@@ -1,14 +1,20 @@
+from datetime import date, time
+
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import AnneeUniversitaire, Formation, UE, UP
+from academics.models import AnneeUniversitaire, Formation, UE
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
 
 
 class AuthenticationTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username="adam", password="pass123", role=RoleUtilisateur.SCOLARITE)
+        self.user = User.objects.create_user(
+            username="adam",
+            password="pass123",
+            role=RoleUtilisateur.SCOLARITE,
+        )
 
     def test_dashboard_redirects_anonymous_user_to_login(self):
         response = self.client.get(reverse("dashboard"))
@@ -22,7 +28,10 @@ class AuthenticationTests(TestCase):
         self.assertContains(response, "Nom d’utilisateur")
 
     def test_valid_login_redirects_to_dashboard(self):
-        response = self.client.post(reverse("login"), {"username": "adam", "password": "pass123"})
+        response = self.client.post(
+            reverse("login"),
+            {"username": "adam", "password": "pass123"},
+        )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse("dashboard"))
 
@@ -31,36 +40,44 @@ class AuthenticationTests(TestCase):
         self.user.is_staff = True
         self.assertTrue(self.user.is_admin())
 
+    def test_user_display_helpers_normalize_name_and_email(self):
+        user = User.objects.create_user(
+            username="format_test",
+            password="pass123",
+            role=RoleUtilisateur.MEMBRE_POOL,
+            first_name="aDaM",
+            last_name="taDjiNe",
+            email="ADAM.TADJINE@EXAMPLE.COM",
+        )
+        self.assertEqual(user.display_first_name, "Adam")
+        self.assertEqual(user.display_last_name, "TADJINE")
+        self.assertEqual(user.display_full_name, "Adam TADJINE")
+        self.assertEqual(user.display_email, "adam.tadjine@example.com")
+
     def test_dashboard_displays_kpis_when_active_year_exists(self):
-        teacher = User.objects.create_user(username="teacher_dashboard", password="pass", role=RoleUtilisateur.ENSEIGNANT)
         year = AnneeUniversitaire.objects.create(
             nom="2033/2034",
             date_debut="2033-09-01",
             date_fin="2034-07-31",
             is_active=True,
         )
-        formation = Formation.objects.create(annee_universitaire=year, nom="Formation KPI")
+        formation = Formation.objects.create(
+            annee_universitaire=year,
+            nom="Formation KPI",
+        )
         ue = UE.objects.create(nom="UE KPI")
-        ue.responsables.add(teacher)
         formation.ues.add(ue)
-        up = UP.objects.create(ue=ue, nom="UP KPI", matiere="KPI")
         session = SessionExamen.objects.create(
             formation=formation,
             nom="Session KPI",
-            date_debut="2034-01-01",
-            date_fin="2034-01-31",
         )
         Examen.objects.create(
             session=session,
-            up=up,
+            ue=ue,
             nom="Exam KPI",
-            date="2034-01-10",
-            heure_debut="09:00",
-            heure_fin="11:00",
-            nb_eleves=20,
-            nb_eleves_tiers_temps=0,
-            nb_surveillants_requis=1,
-            responsable=teacher,
+            date=date(2034, 1, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
         )
         self.client.force_login(self.user)
         response = self.client.get(reverse("dashboard"))
@@ -69,7 +86,7 @@ class AuthenticationTests(TestCase):
         self.assertContains(response, "Formation KPI")
         self.assertContains(response, "Exam KPI")
 
-    def test_navbar_exposes_only_main_application_sections(self):
+    def test_navbar_exposes_main_sections_and_no_admin_for_non_staff(self):
         year = AnneeUniversitaire.objects.create(
             nom="2034/2035",
             date_debut="2034-09-01",
@@ -87,7 +104,16 @@ class AuthenticationTests(TestCase):
         self.assertIn("Examens", nav_html)
         self.assertIn("Suivi", nav_html)
         self.assertNotIn("Exports", nav_html)
-        self.assertNotIn("Enseignement", nav_html)
         self.assertNotIn("Admin", nav_html)
-        self.assertNotIn("/salles/", nav_html)
-        self.assertContains(response, "Tableau de bord")
+
+    def test_admin_index_uses_pharmexam_branding(self):
+        admin_user = User.objects.create_superuser(
+            username="admin_branding",
+            password="pass123",
+            email="admin@example.com",
+        )
+        self.client.force_login(admin_user)
+        response = self.client.get(reverse("admin:index"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Administration Pharmexam")
+        self.assertContains(response, "Retour à l'application")

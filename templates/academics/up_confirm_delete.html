@@ -2,18 +2,25 @@
 {% block title %}Supprimer l'UP — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Supprimer l'UP</h1>
-  <p class="page-subtitle">Cette action est irréversible.</p>
-
-  <div class="card" style="max-width:720px;">
-    <p style="margin-top:0;">Confirmer la suppression de l'UP <strong>{{ object.nom }}</strong> ?</p>
-    <p class="card__meta">UE de rattachement : {{ object.ue.nom }}</p>
-    <form method="post">
-      {% csrf_token %}
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn--primary" type="submit">Supprimer</button>
-        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Annuler</a>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Supprimer l'UP</h1>
+        <p class="page-subtitle">Cette action est irréversible.</p>
       </div>
-    </form>
+      <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Retour aux UP</a>
+    </div>
+
+    <div class="card form-card">
+      <div class="confirm-copy">
+        <p>Confirmer la suppression de l'UP <strong>{{ object.nom }}</strong> ?</p>
+        <p class="card__meta">UE de rattachement : {{ object.ue.nom }}</p>
+      </div>
+      <form method="post" class="form-actions">
+      {% csrf_token %}
+        <button class="btn btn--ghost" type="submit">Supprimer</button>
+        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Annuler</a>
+      </form>
+    </div>
   </div>
 {% endblock %}

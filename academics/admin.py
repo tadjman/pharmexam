@@ -9,6 +9,7 @@ class AnneeUniversitaireAdmin(admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("nom",)
     ordering = ("-date_debut",)
+    fields = ("date_debut", "date_fin", "is_active")
 
 
 @admin.register(Formation)

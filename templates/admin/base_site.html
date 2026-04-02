@@ -1,0 +1,21 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}Administration Pharmexam{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/admin-pharmexam.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <div class="admin-pharmexam-brand">
+    <div>
+      <h1 id="site-name"><a href="{% url 'admin:index' %}">Administration Pharmexam</a></h1>
+      <p>Interface technique de gestion</p>
+    </div>
+    <a class="admin-pharmexam-link" href="{% url 'dashboard' %}">Retour à l'application</a>
+  </div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

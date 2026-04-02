@@ -2,25 +2,44 @@
 {% block title %}Connexion — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Connexion</h1>
-  <p class="page-subtitle">Connecte-toi pour accéder aux fonctionnalités.</p>
-
-  <div class="card" style="max-width: 520px;">
-    <form method="post">
-      {% csrf_token %}
-      {{ form.non_field_errors }}
-
-      <div style="margin-bottom: 16px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Nom d’utilisateur</label>
-        {{ form.username }}
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Connexion</h1>
+        <p class="page-subtitle">Connecte-toi pour accéder à l’organisation des examens et des surveillances.</p>
       </div>
+    </div>
 
-      <div style="margin-bottom: 16px;">
-        <label style="font-weight:500; display:block; margin-bottom:8px;">Mot de passe</label>
-        {{ form.password }}
-      </div>
+    <div class="card form-card login-card">
+      <form method="post" class="form-layout" novalidate>
+        {% csrf_token %}
 
-      <button class="btn btn--primary" type="submit">Se connecter</button>
-    </form>
+        {% if form.non_field_errors %}
+          <div class="flash flash--error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label">Nom d’utilisateur</label>
+            {{ form.username }}
+            {% if form.username.errors %}<div class="form-error">{{ form.username.errors }}</div>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Mot de passe</label>
+            {{ form.password }}
+            {% if form.password.errors %}<div class="form-error">{{ form.password.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit">Se connecter</button>
+        </div>
+      </form>
+    </div>
   </div>
 {% endblock %}

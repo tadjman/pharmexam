@@ -10,7 +10,7 @@ from xml.sax.saxutils import escape
 from academics.models import AnneeUniversitaire, Formation
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
-from exams.models import Examen, SessionExamen
+from exams.models import Examen, SessionExamen, build_session_order_expression
 
 
 def get_active_year(request):
@@ -31,19 +31,24 @@ def get_sessions_queryset(active_year, formation=None):
     )
     if formation is not None:
         sessions = sessions.filter(formation=formation)
-    return sessions.order_by("formation__nom", "-date_debut", "nom")
+    return SessionExamen.ordered_queryset(sessions)
 
 
 def get_report_rows(active_year, formation=None, session=None, role="", query=""):
     sessions = get_sessions_queryset(active_year, formation=formation)
     surveillance_qs = Surveillance.objects.filter(
-        examen__session__formation__annee_universitaire=active_year
-    ).select_related("examen", "examen__session", "examen__session__formation")
+        affectation_salle__examen__session__formation__annee_universitaire=active_year
+    ).select_related(
+        "affectation_salle__examen",
+        "affectation_salle__examen__session",
+        "affectation_salle__examen__session__formation",
+        "affectation_salle__salle",
+    )
 
     if formation is not None:
-        surveillance_qs = surveillance_qs.filter(examen__session__formation=formation)
+        surveillance_qs = surveillance_qs.filter(affectation_salle__examen__session__formation=formation)
     if session is not None:
-        surveillance_qs = surveillance_qs.filter(examen__session=session)
+        surveillance_qs = surveillance_qs.filter(affectation_salle__examen__session=session)
 
     users_qs = User.objects.filter(is_active=True).prefetch_related(
         Prefetch("surveillances", queryset=surveillance_qs, to_attr="report_surveillances")
@@ -64,15 +69,19 @@ def get_report_rows(active_year, formation=None, session=None, role="", query=""
         total_minutes = sum(item.examen.duree_minutes for item in surveillances)
         exam_details = [
             {
-                "username": user.username,
+                "user_display": user.display_full_name,
                 "role": user.get_role_display(),
-                "formation": item.examen.session.formation.nom,
-                "name": item.examen.nom,
-                "session": item.examen.session.nom,
-                "date": item.examen.date,
-                "time_range": f"{item.examen.heure_debut} → {item.examen.heure_fin}",
-                "duration": format_minutes(item.examen.duree_minutes),
-                "minutes": item.examen.duree_minutes,
+                "formation": item.affectation_salle.examen.session.formation.nom,
+                "session": item.affectation_salle.examen.session.nom,
+                "room": item.affectation_salle.salle.nom,
+                "name": item.affectation_salle.examen.nom,
+                "date": item.affectation_salle.examen.date,
+                "time_range": (
+                    f"{item.affectation_salle.examen.heure_debut} → "
+                    f"{item.affectation_salle.examen.heure_fin}"
+                ),
+                "duration": format_minutes(item.affectation_salle.examen.duree_minutes),
+                "minutes": item.affectation_salle.examen.duree_minutes,
             }
             for item in surveillances
         ]
@@ -85,7 +94,8 @@ def get_report_rows(active_year, formation=None, session=None, role="", query=""
                 "hours_display": format_minutes(total_minutes),
                 "exam_details": exam_details,
                 "exam_details_export": " | ".join(
-                    f"{detail['formation']} / {detail['session']} / {detail['name']} ({detail['date']} - {detail['time_range']})"
+                    f"{detail['formation']} / {detail['session']} / {detail['name']} / {detail['room']} "
+                    f"({detail['date']} - {detail['time_range']})"
                     for detail in exam_details
                 ),
             }
@@ -105,9 +115,9 @@ def build_excel_xml(title, rows, detail_rows):
     summary_rows = [
         (
             "<Row>"
-            "<Cell><Data ss:Type=\"String\">Utilisateur</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Surveillant</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Role</Data></Cell>"
-            "<Cell><Data ss:Type=\"String\">Nom</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Contact</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Examens</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Minutes</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Heures</Data></Cell>"
@@ -116,12 +126,11 @@ def build_excel_xml(title, rows, detail_rows):
         )
     ]
     for row in rows:
-        full_name = f"{row['user'].first_name} {row['user'].last_name}".strip()
         summary_rows.append(
             "<Row>"
-            f"<Cell><Data ss:Type=\"String\">{escape(row['user'].username)}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['user'].display_full_name)}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['user'].get_role_display())}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"String\">{escape(full_name)}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['user'].display_contact)}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['exam_count']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['total_minutes']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{row['hours_display']}</Data></Cell>"
@@ -132,10 +141,11 @@ def build_excel_xml(title, rows, detail_rows):
     detailed_rows = [
         (
             "<Row>"
-            "<Cell><Data ss:Type=\"String\">Utilisateur</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Surveillant</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Role</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Formation</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Salle</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Date</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Créneau</Data></Cell>"
@@ -147,10 +157,11 @@ def build_excel_xml(title, rows, detail_rows):
     for item in detail_rows:
         detailed_rows.append(
             "<Row>"
-            f"<Cell><Data ss:Type=\"String\">{escape(item['username'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['user_display'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(item['role'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(item['formation'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(item['session'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(item['room'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(item['name'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(str(item['date']))}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(item['time_range'])}</Data></Cell>"
@@ -184,16 +195,16 @@ def get_exam_export_rows(active_year, session=None):
     ).select_related(
         "session",
         "session__formation",
-        "up",
-        "up__ue",
-        "responsable",
+        "ue",
     ).prefetch_related(
         "affectations_salles__salle",
-        "surveillances__surveillant",
+        "affectations_salles__surveillances__surveillant",
     )
     if session is not None:
         exams = exams.filter(session=session)
-    exams = exams.order_by("session__formation__nom", "session__date_debut", "date", "heure_debut", "nom")
+    exams = exams.annotate(
+        session_sort_order=build_session_order_expression("session__nom")
+    ).order_by("session__formation__nom", "session_sort_order", "session__nom", "date", "heure_debut", "nom")
 
     exam_rows = []
     room_rows = []
@@ -202,8 +213,7 @@ def get_exam_export_rows(active_year, session=None):
     for exam in exams:
         exam.update_statut(save=True)
         affectations = list(exam.affectations_salles.all())
-        surveillances = list(exam.surveillances.all())
-        total_capacity = sum(affectation.capacite_effective for affectation in affectations)
+        surveillances = [surveillance for affectation in affectations for surveillance in affectation.surveillances.all()]
         exam_rows.append(
             {
                 "formation": exam.session.formation.nom,
@@ -213,15 +223,11 @@ def get_exam_export_rows(active_year, session=None):
                 "start": str(exam.heure_debut),
                 "end": str(exam.heure_fin),
                 "statut": exam.statut,
-                "ue": exam.up.ue.nom,
-                "up": exam.up.nom,
-                "responsable": exam.responsable.username,
-                "students": exam.nb_eleves,
-                "tiers_students": exam.nb_eleves_tiers_temps,
-                "required_watchers": exam.nb_surveillants_requis,
+                "ue": exam.ue.nom,
+                "required_watchers": sum(affectation.nb_surveillants_requis for affectation in affectations),
                 "registered_watchers": len(surveillances),
                 "rooms_count": len(affectations),
-                "total_capacity": total_capacity,
+                "temps_majore_rooms": sum(1 for affectation in affectations if affectation.temps_majore),
             }
         )
         for affectation in affectations:
@@ -231,25 +237,27 @@ def get_exam_export_rows(active_year, session=None):
                     "session": exam.session.nom,
                     "exam": exam.nom,
                     "room": affectation.salle.nom,
-                    "max_capacity": affectation.salle.capacite_max,
-                    "reserved_capacity": affectation.capacite_reservee or "",
-                    "effective_capacity": affectation.capacite_effective,
-                    "tiers": "Oui" if affectation.is_tiers_temps else "Non",
+                    "temps_majore": "Oui" if affectation.temps_majore else "Non",
+                    "required_watchers": affectation.nb_surveillants_requis,
+                    "registered_watchers": affectation.surveillances.count(),
+                    "lock_start": affectation.salle.heure_debut_verrouillage or "",
+                    "lock_end": affectation.salle.heure_fin_verrouillage or "",
                 }
             )
-        for item in surveillances:
-            surveillance_rows.append(
-                {
-                    "formation": exam.session.formation.nom,
-                    "session": exam.session.nom,
-                    "exam": exam.nom,
-                    "date": str(exam.date),
-                    "watcher": item.surveillant.username,
-                    "role": item.surveillant.get_role_display(),
-                    "time_range": f"{exam.heure_debut} → {exam.heure_fin}",
-                    "duration": format_minutes(exam.duree_minutes),
-                }
-            )
+            for item in affectation.surveillances.all():
+                surveillance_rows.append(
+                    {
+                        "formation": exam.session.formation.nom,
+                        "session": exam.session.nom,
+                        "exam": exam.nom,
+                        "date": str(exam.date),
+                        "room": affectation.salle.nom,
+                        "watcher": item.surveillant.display_full_name,
+                        "role": item.surveillant.get_role_display(),
+                        "time_range": f"{exam.heure_debut} → {exam.heure_fin}",
+                        "duration": format_minutes(exam.duree_minutes),
+                    }
+                )
 
     return exam_rows, room_rows, surveillance_rows
 
@@ -266,14 +274,10 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             "<Cell><Data ss:Type=\"String\">Fin</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Statut</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">UE</Data></Cell>"
-            "<Cell><Data ss:Type=\"String\">UP</Data></Cell>"
-            "<Cell><Data ss:Type=\"String\">Responsable</Data></Cell>"
-            "<Cell><Data ss:Type=\"Number\">Étudiants</Data></Cell>"
-            "<Cell><Data ss:Type=\"Number\">Tiers-temps</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Surveillants requis</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Surveillants inscrits</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Salles</Data></Cell>"
-            "<Cell><Data ss:Type=\"Number\">Capacité totale</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Salles temps majoré</Data></Cell>"
             "</Row>"
         )
     ]
@@ -288,14 +292,10 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             f"<Cell><Data ss:Type=\"String\">{escape(row['end'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['statut'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['ue'])}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"String\">{escape(row['up'])}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"String\">{escape(row['responsable'])}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"Number\">{row['students']}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"Number\">{row['tiers_students']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['required_watchers']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['registered_watchers']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['rooms_count']}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"Number\">{row['total_capacity']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['temps_majore_rooms']}</Data></Cell>"
             "</Row>"
         )
 
@@ -306,10 +306,11 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Salle</Data></Cell>"
-            "<Cell><Data ss:Type=\"Number\">Capacité max</Data></Cell>"
-            "<Cell><Data ss:Type=\"String\">Capacité réservée</Data></Cell>"
-            "<Cell><Data ss:Type=\"Number\">Capacité effective</Data></Cell>"
-            "<Cell><Data ss:Type=\"String\">Tiers-temps</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Temps majoré</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Surveillants requis</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Surveillants inscrits</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Début verrouillage</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Fin verrouillage</Data></Cell>"
             "</Row>"
         )
     ]
@@ -320,10 +321,11 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['room'])}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"Number\">{row['max_capacity']}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"String\">{escape(str(row['reserved_capacity']))}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"Number\">{row['effective_capacity']}</Data></Cell>"
-            f"<Cell><Data ss:Type=\"String\">{escape(row['tiers'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['temps_majore'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['required_watchers']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"Number\">{row['registered_watchers']}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(str(row['lock_start']))}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(str(row['lock_end']))}</Data></Cell>"
             "</Row>"
         )
 
@@ -334,6 +336,7 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Date</Data></Cell>"
+            "<Cell><Data ss:Type=\"String\">Salle</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Surveillant</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Rôle</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Créneau</Data></Cell>"
@@ -348,6 +351,7 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['date'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(row['room'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['watcher'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['role'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['time_range'])}</Data></Cell>"
@@ -413,7 +417,7 @@ class ExportCenterView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx["active_year"] = self.active_year
         ctx["formations"] = Formation.objects.filter(annee_universitaire=self.active_year).prefetch_related(
-            Prefetch("sessions", queryset=SessionExamen.objects.order_by("-date_debut", "nom"))
+            Prefetch("sessions", queryset=SessionExamen.ordered_queryset())
         ).order_by("nom")
         return ctx
 

@@ -5,12 +5,12 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">{{ examen.nom }}</h1>
-      <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.up.ue.nom }} / {{ examen.up.nom }}</p>
+      <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.ue.nom }}</p>
     </div>
     {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a class="btn btn--primary" href="{% url 'exams:exam_complete' examen.pk %}">Compléter l'examen</a>
-        <a class="btn btn--outline" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
+        <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter l'examen</a>
+        <a class="btn btn--accent" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
         <a class="btn btn--ghost" href="{% url 'exams:exam_delete' examen.pk %}">Supprimer</a>
       </div>
     {% endif %}
@@ -21,26 +21,20 @@
       <h2 class="card__title">Informations</h2>
       <p class="card__meta"><strong>Formation :</strong> {{ examen.session.formation.nom }}</p>
       <p class="card__meta"><strong>Session :</strong> {{ examen.session.nom }}</p>
+      <p class="card__meta"><strong>UE :</strong> {{ examen.ue.nom }}</p>
       <p class="card__meta"><strong>Date :</strong> {{ examen.date }}</p>
       <p class="card__meta"><strong>Créneau :</strong> {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
-      <p class="card__meta"><strong>Responsable :</strong> {{ examen.responsable.username }}</p>
       <p class="card__meta"><strong>Statut :</strong> {{ examen.statut }}</p>
     </div>
 
     <div class="card">
-      <h2 class="card__title">Candidats</h2>
-      <p class="card__meta"><strong>Total :</strong> {{ examen.nb_eleves }}</p>
-      <p class="card__meta"><strong>Tiers-temps :</strong> {{ examen.nb_eleves_tiers_temps }}</p>
-    </div>
-
-    <div class="card">
       <h2 class="card__title">Surveillance</h2>
-      <p class="card__meta"><strong>Surveillants requis :</strong> {{ examen.nb_surveillants_requis }}</p>
-      <p class="card__meta"><strong>Inscrits :</strong> {{ examen.surveillances.count }}</p>
-      {% if examen.surveillances.all %}
+      <p class="card__meta"><strong>Surveillants requis :</strong> {{ examen.surveillants_requis_total }}</p>
+      <p class="card__meta"><strong>Inscrits :</strong> {{ examen.surveillants_inscrits_total }}</p>
+      {% if examen.surveillances %}
         <div style="display:grid; gap:8px;">
-          {% for s in examen.surveillances.all %}
-            <div class="card__meta">{{ s.surveillant.username }}</div>
+          {% for s in examen.surveillances %}
+            <div class="card__meta">{{ s.surveillant.display_full_name }} · {{ s.salle.nom }}</div>
           {% endfor %}
         </div>
       {% else %}
@@ -53,7 +47,11 @@
       {% if examen.affectations_salles.all %}
         <div style="display:grid; gap:10px;">
           {% for a in examen.affectations_salles.all %}
-            <div class="card__meta">{{ a.salle.nom }} — capacité {{ a.capacite_effective }}{% if a.is_tiers_temps %} · tiers-temps{% endif %}</div>
+            <div class="card__meta">
+              {{ a.salle.nom }}
+              {% if a.temps_majore %} · temps majoré{% endif %}
+              · {{ a.surveillances.count }} / {{ a.nb_surveillants_requis }} surveillant{% if a.nb_surveillants_requis > 1 %}s{% endif %}
+            </div>
           {% endfor %}
         </div>
       {% else %}

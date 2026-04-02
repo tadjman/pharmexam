@@ -2,36 +2,43 @@
 {% block title %}{% if form.instance.pk %}Modifier la formation{% else %}Nouvelle formation{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">{% if form.instance.pk %}Modifier la formation{% else %}Nouvelle formation{% endif %}</h1>
-  <p class="page-subtitle">Renseigne la formation de l'année active et rattache les UE concernées.</p>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">{% if form.instance.pk %}Modifier la formation{% else %}Nouvelle formation{% endif %}</h1>
+        <p class="page-subtitle">Renseigne la formation de l'année active et rattache les UE concernées.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour aux formations</a>
+    </div>
 
-  <div class="card" style="max-width:720px;">
-    <form method="post" novalidate>
+    <div class="card form-card">
+      <form method="post" novalidate class="form-layout">
       {% csrf_token %}
 
       {% if form.non_field_errors %}
         <div class="flash flash--error">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      <div style="display:grid; gap:16px;">
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Nom</label>
           {{ form.nom }}
-          {% if form.nom.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
+          {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
         </div>
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">UE rattachées</label>
+        <div class="form-field">
+          <label class="form-label">UE rattachées</label>
           <div class="responsable-picker">
             {{ form.ues }}
           </div>
-          {% if form.ues.errors %}<div style="margin-top:8px;color:var(--error);font-size:14px;">{{ form.ues.errors }}</div>{% endif %}
+          {% if form.ues.errors %}<div class="form-error">{{ form.ues.errors }}</div>{% endif %}
         </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
-        <button class="btn btn--primary" type="submit">Enregistrer</button>
+      <div class="form-actions">
+        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
         <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour</a>
       </div>
     </form>
+    </div>
   </div>
 {% endblock %}

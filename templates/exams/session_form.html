@@ -2,46 +2,41 @@
 {% block title %}{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %}</h1>
-  <p class="page-subtitle">Rattache la session à une formation et définis sa période.</p>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %}</h1>
+        <p class="page-subtitle">Rattache la session à une formation. Les sessions sont des conteneurs logiques d'examens.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:session_list' %}{% if form.instance.formation_id %}?formation={{ form.instance.formation_id }}{% elif form.formation.value %}?formation={{ form.formation.value }}{% endif %}">Retour aux sessions</a>
+    </div>
 
-  <div class="card" style="max-width:720px;">
-    <form method="post" novalidate>
+    <div class="card form-card">
+      <form method="post" novalidate class="form-layout">
       {% csrf_token %}
 
       {% if form.non_field_errors %}
         <div class="flash flash--error">{{ form.non_field_errors }}</div>
       {% endif %}
 
-      <div style="display:grid; gap:16px;">
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Formation</label>
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">Formation</label>
           {{ form.formation }}
-          {% if form.formation.errors %}<div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.formation.errors }}</div>{% endif %}
+          {% if form.formation.errors %}<div class="form-error">{{ form.formation.errors }}</div>{% endif %}
         </div>
-        <div>
-          <label style="font-weight:500; display:block; margin-bottom:8px;">Nom</label>
+        <div class="form-field">
+          <label class="form-label">Nom</label>
           {{ form.nom }}
-          {% if form.nom.errors %}<div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.nom.errors }}</div>{% endif %}
-        </div>
-        <div style="display:grid; grid-template-columns:1fr; gap:16px;">
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Date début</label>
-            {{ form.date_debut }}
-            {% if form.date_debut.errors %}<div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.date_debut.errors }}</div>{% endif %}
-          </div>
-          <div>
-            <label style="font-weight:500; display:block; margin-bottom:8px;">Date fin</label>
-            {{ form.date_fin }}
-            {% if form.date_fin.errors %}<div style="margin-top:8px; color: var(--error); font-size:14px;">{{ form.date_fin.errors }}</div>{% endif %}
-          </div>
+          {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
         </div>
       </div>
 
-      <div style="display:flex; gap:8px; margin-top:24px; flex-wrap:wrap;">
-        <button class="btn btn--primary" type="submit">Enregistrer</button>
+      <div class="form-actions">
+        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
         <a class="btn btn--outline" href="{% url 'exams:session_list' %}{% if form.instance.formation_id %}?formation={{ form.instance.formation_id }}{% elif form.formation.value %}?formation={{ form.formation.value }}{% endif %}">Retour</a>
       </div>
     </form>
+    </div>
   </div>
 {% endblock %}

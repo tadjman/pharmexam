@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import ProtectedError
+from django.db.models import Count
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
@@ -13,6 +14,8 @@ class IsScolariteOrAdminMixin(UserPassesTestMixin):
     def test_func(self):
         u = self.request.user
         return u.is_authenticated and (u.is_superuser or u.is_staff or getattr(u, "role", "") == "SCOLARITE")
+
+
 class SalleListView(LoginRequiredMixin, ListView):
     model = Salle
     template_name = "rooms/salle_list.html"
@@ -20,7 +23,7 @@ class SalleListView(LoginRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        return Salle.objects.order_by("nom")
+        return Salle.objects.annotate(affectations_count=Count("affectations")).order_by("nom")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

@@ -1,5 +1,6 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count
+from django.utils import timezone
 from django.views.generic import TemplateView
 
 from academics.models import AnneeUniversitaire, Formation
@@ -44,23 +45,25 @@ class TableauDeBordView(LoginRequiredMixin, TemplateView):
             exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
                 "session",
                 "session__formation",
-                "up",
-                "up__ue",
-                "responsable",
+                "ue",
             )
             for exam in exams:
                 exam.update_statut(save=True)
             exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
                 "session",
                 "session__formation",
-                "up",
-                "up__ue",
-                "responsable",
+                "ue",
             )
-            surveillances = Surveillance.objects.filter(examen__session__formation__annee_universitaire=active_year)
+            surveillances = Surveillance.objects.filter(
+                affectation_salle__examen__session__formation__annee_universitaire=active_year
+            )
             status_counts = exams.values("statut").annotate(total=Count("id"))
             exams_by_status.update({row["statut"]: row["total"] for row in status_counts})
-            upcoming_exams = list(exams.exclude(statut=StatutExamen.TERMINE).order_by("date", "heure_debut")[:5])
+            now = timezone.now()
+            upcoming_exams = [
+                exam for exam in exams.order_by("date", "heure_debut")
+                if exam.end_dt >= now
+            ][:5]
 
         total_exams = exams.count()
         completion_rate = int((exams_by_status[StatutExamen.COMPLET] / total_exams) * 100) if total_exams else 0

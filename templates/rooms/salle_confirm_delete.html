@@ -2,17 +2,33 @@
 {% block title %}Supprimer la salle — Pharmexam{% endblock %}
 
 {% block content %}
-  <h1 class="page-title">Supprimer la salle</h1>
-  <p class="page-subtitle">Cette action est irréversible.</p>
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Supprimer la salle</h1>
+        <p class="page-subtitle">Cette action est irréversible.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Retour aux salles</a>
+    </div>
 
-  <div class="card" style="max-width:720px;">
-    <p style="margin-top:0;">Confirmer la suppression de la salle <strong>{{ object.nom }}</strong> ?</p>
-    <p class="card__meta">Capacité maximale : {{ object.capacite_max }}</p>
+    <div class="card form-card">
+      <div class="confirm-copy">
+        <p>Confirmer la suppression de la salle <strong>{{ object.nom }}</strong> ?</p>
+        <p class="card__meta">
+          Verrouillage :
+          {% if object.heure_debut_verrouillage or object.heure_fin_verrouillage %}
+            {{ object.heure_debut_verrouillage|default:"--:--" }} → {{ object.heure_fin_verrouillage|default:"--:--" }}
+          {% else %}
+            non défini
+          {% endif %}
+        </p>
+      </div>
 
-    <form method="post" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <form method="post" class="form-actions">
       {% csrf_token %}
-      <button class="btn btn--primary" type="submit">Supprimer</button>
+      <button class="btn btn--ghost" type="submit">Supprimer</button>
       <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Annuler</a>
     </form>
+    </div>
   </div>
 {% endblock %}

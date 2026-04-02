@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Désinscrire — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">{% if surveillance.surveillant_id == user.pk and not is_admin_user %}Se désinscrire{% else %}Désinscrire{% endif %}</h1>
+        <p class="page-subtitle">{{ examen.nom }} · {{ surveillance.affectation_salle.salle.nom }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+    </div>
+
+    <div class="card exam-form-card">
+      <p class="page-subtitle">Confirme la désinscription de <strong>{{ surveillance.surveillant.display_full_name }}</strong>.</p>
+      <form method="post">
+        {% csrf_token %}
+        <div class="exam-form-actions">
+          <button class="btn btn--ghost" type="submit">{% if surveillance.surveillant_id == user.pk and not is_admin_user %}Se désinscrire{% else %}Désinscrire{% endif %}</button>
+          <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

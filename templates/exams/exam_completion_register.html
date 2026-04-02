@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{% if is_admin_user %}Inscrire un utilisateur{% else %}S'inscrire{% endif %} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="exam-form-page">
+    <div class="exam-form-page__header">
+      <div>
+        <h1 class="page-title">{% if is_admin_user %}Inscrire un utilisateur{% else %}S'inscrire à la salle{% endif %}</h1>
+        <p class="page-subtitle">{{ examen.nom }} · {{ affectation.salle.nom }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+    </div>
+
+    <div class="card exam-form-card">
+      {% if not is_admin_user and already_registered_on_room %}
+        <p class="page-subtitle" style="margin-bottom:0;">Tu es déjà inscrit sur cette salle.</p>
+      {% elif not is_admin_user and current_user_surveillance and not current_user_surveillance.affectation_salle_id == affectation.pk %}
+        <p class="page-subtitle" style="margin-bottom:0;">Tu es déjà inscrit sur une autre salle de cet examen.</p>
+      {% elif room_is_full %}
+        <p class="page-subtitle" style="margin-bottom:0;">Salle complète.</p>
+      {% elif room_is_locked %}
+        <p class="page-subtitle" style="margin-bottom:0;">Inscriptions verrouillées pour cette salle.</p>
+      {% else %}
+        <form method="post" novalidate class="exam-form-layout">
+          {% csrf_token %}
+          {% if form.non_field_errors %}<div class="flash flash--error">{{ form.non_field_errors }}</div>{% endif %}
+
+          {% if is_admin_user %}
+            <div>
+              <label class="exam-label">Prénom</label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="exam-error">{{ form.first_name.errors }}</div>{% endif %}
+            </div>
+            <div>
+              <label class="exam-label">Nom</label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}<div class="exam-error">{{ form.last_name.errors }}</div>{% endif %}
+            </div>
+            <div>
+              <label class="exam-label">Adresse email</label>
+              {{ form.email }}
+              {% if form.email.errors %}<div class="exam-error">{{ form.email.errors }}</div>{% endif %}
+            </div>
+          {% endif %}
+
+          <label class="form-check">
+            {{ form.is_responsable_general }}
+            <span class="form-check__text">
+              Responsable d'épreuve
+              {% if not is_admin_user and general_responsable_locked %}
+                <span class="form-check__note">Responsable déjà défini</span>
+              {% endif %}
+            </span>
+          </label>
+          {% if form.is_responsable_general.errors %}<div class="exam-error">{{ form.is_responsable_general.errors }}</div>{% endif %}
+
+          <label class="form-check">
+            {{ form.is_responsable_salle }}
+            <span class="form-check__text">
+              Responsable de salle
+              {% if not is_admin_user and room_responsable_locked %}
+                <span class="form-check__note">Responsable déjà défini</span>
+              {% endif %}
+            </span>
+          </label>
+          {% if form.is_responsable_salle.errors %}<div class="exam-error">{{ form.is_responsable_salle.errors }}</div>{% endif %}
+
+          <div class="exam-form-actions">
+            <button class="btn btn--primary" type="submit">{% if is_admin_user %}Inscrire{% else %}S'inscrire{% endif %}</button>
+            <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
+          </div>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

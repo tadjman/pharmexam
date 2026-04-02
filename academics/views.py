@@ -9,6 +9,7 @@ from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
 from .forms import (
+    AnneeUniversitaireForm,
     FormationForm,
     UEForm,
     UPForm,
@@ -69,8 +70,8 @@ class AnneeDetailView(LoginRequiredMixin, DetailView):
 
 class AnneeCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
     model = AnneeUniversitaire
+    form_class = AnneeUniversitaireForm
     template_name = "academics/annee_form.html"
-    fields = ["nom", "date_debut", "date_fin", "is_active"]
     success_url = reverse_lazy("academics:annee_list")
 
     def form_valid(self, form):
@@ -81,8 +82,8 @@ class AnneeCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
 
 class AnneeUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
     model = AnneeUniversitaire
+    form_class = AnneeUniversitaireForm
     template_name = "academics/annee_form.html"
-    fields = ["nom", "date_debut", "date_fin", "is_active"]
     success_url = reverse_lazy("academics:annee_list")
 
     def form_valid(self, form):

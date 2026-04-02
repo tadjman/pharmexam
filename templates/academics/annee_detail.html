@@ -2,36 +2,39 @@
 {% block title %}{{ annee.nom }} — Pharmexam{% endblock %}
 
 {% block content %}
-  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
-      <h1 class="page-title">{{ annee.nom }}</h1>
-      <p class="page-subtitle">Formations rattachées à cette année universitaire.</p>
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">{{ annee.nom }}</h1>
+        <p class="page-subtitle">Formations rattachées à cette année universitaire.</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour aux années</a>
+        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ annee.pk }}">Voir dans Formations</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+          <a class="btn btn--primary" href="{% url 'academics:formation_create' %}?year={{ annee.pk }}">Nouvelle formation</a>
+        {% endif %}
+      </div>
     </div>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour aux années</a>
-      <a class="btn btn--ghost" href="{% url 'academics:formation_list' %}?year={{ annee.pk }}">Voir dans Formations</a>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <a class="btn btn--primary" href="{% url 'academics:formation_create' %}?year={{ annee.pk }}">Nouvelle formation</a>
+
+    <div class="card section-card">
+      {% if formations %}
+        <div class="entity-list">
+          {% for formation in formations %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ formation.nom }}</div>
+                <div class="entity-row__meta">{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %}</div>
+              </div>
+              <div class="entity-row__actions">
+                <a class="btn btn--outline" href="{% url 'academics:formation_detail' formation.pk %}">Détails</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune formation n'est encore rattachée à cette année.</p>
       {% endif %}
     </div>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    {% if formations %}
-      <div style="display:grid; gap:16px;">
-        {% for formation in formations %}
-          <div style="display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; align-items:center;">
-            <div>
-              <div style="font-weight:600; font-size:16px;">{{ formation.nom }}</div>
-              <div class="card__meta">{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %}</div>
-            </div>
-            <a class="btn btn--primary" href="{% url 'academics:formation_detail' formation.pk %}">Détails</a>
-          </div>
-          {% if not forloop.last %}<hr style="border:none; border-top:1px solid var(--border); margin:0;">{% endif %}
-        {% endfor %}
-      </div>
-    {% else %}
-      <p class="page-subtitle" style="margin:0;">Aucune formation n'est encore rattachée à cette année.</p>
-    {% endif %}
   </div>
 {% endblock %}

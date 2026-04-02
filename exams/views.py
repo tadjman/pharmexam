@@ -2,19 +2,33 @@ from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.core.exceptions import ValidationError
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.text import slugify
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from academics.models import AnneeUniversitaire, Formation
+from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
 from rooms.models import AffectationSalle
 
-from .forms import ExamCompletionRoomForm, ExamCompletionSurveillanceForm, ExamForm, SessionForm
+from .forms import (
+    AdminNewUserRoleChoiceForm,
+    AdminRoomRegistrationForm,
+    ExamCompletionRoomForm,
+    ExamForm,
+    SelfRoomRegistrationForm,
+    SessionForm,
+    SurveillanceResponsibilityForm,
+)
 from .models import Examen, SessionExamen, StatutExamen
+
+
+DEFAULT_SURVEILLANT_PASSWORD = "Pharmexam123!"
 
 
 class IsScolariteOrAdminMixin(UserPassesTestMixin):
@@ -38,6 +52,22 @@ def build_url(name, **params):
     return f"{url}?{query}" if query else url
 
 
+def is_admin_user(user):
+    return user.is_authenticated and (
+        user.is_superuser or user.is_staff or getattr(user, "role", "") == RoleUtilisateur.SCOLARITE
+    )
+
+
+def build_unique_username(first_name: str, last_name: str, email: str) -> str:
+    base = slugify(email.split("@", 1)[0] if email else f"{first_name}.{last_name}") or "surveillant"
+    username = base
+    suffix = 2
+    while User.objects.filter(username=username).exists():
+        username = f"{base}{suffix}"
+        suffix += 1
+    return username
+
+
 class SessionListView(LoginRequiredMixin, ListView):
     model = SessionExamen
     template_name = "exams/session_list.html"
@@ -57,7 +87,7 @@ class SessionListView(LoginRequiredMixin, ListView):
         qs = SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
             formation=self.selected_formation_obj
         )
-        return qs.order_by("-date_debut", "nom")
+        return SessionExamen.ordered_queryset(qs)
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -209,9 +239,11 @@ class ExamListView(LoginRequiredMixin, ListView):
                 "annee_universitaire__date_debut", "nom"
             )
         ]
-        all_sessions = SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
-            formation__annee_universitaire=self.selected_year
-        ).order_by("formation__nom", "-date_debut", "nom")
+        all_sessions = SessionExamen.ordered_queryset(
+            SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
+                formation__annee_universitaire=self.selected_year
+            )
+        )
         self.sessions_payload = [
             {
                 "id": str(session.pk),
@@ -248,9 +280,7 @@ class ExamListView(LoginRequiredMixin, ListView):
         qs = Examen.objects.select_related(
             "session",
             "session__formation",
-            "up",
-            "up__ue",
-            "responsable",
+            "ue",
         ).filter(session=self.selected_session_obj)
 
         for exam in qs:
@@ -262,9 +292,7 @@ class ExamListView(LoginRequiredMixin, ListView):
             Examen.objects.select_related(
                 "session",
                 "session__formation",
-                "up",
-                "up__ue",
-                "responsable",
+                "ue",
             )
             .filter(session=self.selected_session_obj)
             .order_by("date", "heure_debut")
@@ -297,8 +325,8 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self):
         return (
-            Examen.objects.select_related("session", "session__formation", "session__formation__annee_universitaire", "up", "up__ue", "responsable")
-            .prefetch_related("affectations_salles__salle", "surveillances__surveillant")
+            Examen.objects.select_related("session", "session__formation", "session__formation__annee_universitaire", "ue")
+            .prefetch_related("affectations_salles__salle", "affectations_salles__surveillances__surveillant")
         )
 
     def get_object(self, queryset=None):
@@ -308,136 +336,569 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
 
 
 def completion_metrics(exam: Examen):
-    total_capacity = sum(a.capacite_effective for a in exam.affectations_salles.select_related("salle"))
-    tiers_required = exam.nb_eleves_tiers_temps > 0
-    tiers_count = exam.affectations_salles.filter(is_tiers_temps=True).count()
-    surveillants_count = exam.surveillances.count()
+    affectations = list(exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant"))
+    surveillants_required = sum(a.nb_surveillants_requis for a in affectations)
+    surveillants_count = sum(a.surveillances.count() for a in affectations)
+    complete_rooms = sum(1 for a in affectations if a.surveillances.count() >= a.nb_surveillants_requis)
+    responsable_general = exam.surveillances.filter(is_responsable_general=True).select_related("surveillant").first()
     return {
-        "total_capacity": total_capacity,
-        "required_capacity": exam.nb_eleves,
-        "capacity_ok": total_capacity >= exam.nb_eleves,
-        "missing_capacity": max(0, exam.nb_eleves - total_capacity),
-        "tiers_required": tiers_required,
-        "tiers_count": tiers_count,
-        "tiers_ok": (not tiers_required) or tiers_count > 0,
-        "missing_tiers_room": 1 if tiers_required and tiers_count == 0 else 0,
+        "room_count": len(affectations),
+        "complete_rooms": complete_rooms,
+        "temps_majore_count": sum(1 for a in affectations if a.temps_majore),
         "surveillants_count": surveillants_count,
-        "surveillants_required": exam.nb_surveillants_requis,
-        "surveillants_ok": surveillants_count >= exam.nb_surveillants_requis,
-        "missing_surveillants": max(0, exam.nb_surveillants_requis - surveillants_count),
+        "surveillants_required": surveillants_required,
+        "surveillants_ok": bool(affectations) and complete_rooms == len(affectations),
+        "missing_surveillants": max(0, surveillants_required - surveillants_count),
+        "responsable_general": responsable_general,
     }
 
 
-class ExamCompleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, View):
-    template_name = "exams/exam_complete.html"
+def build_completion_context(request, exam: Examen, is_admin: bool):
+    metrics = completion_metrics(exam)
+    current_user_surveillance = None
+    if not is_admin:
+        current_user_surveillance = exam.surveillances.filter(
+            surveillant=request.user
+        ).select_related("affectation_salle__salle").first()
 
+    room_rows = []
+    affectations = exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant")
+    for affectation in affectations:
+        surveillances = list(affectation.surveillances.all())
+        room_rows.append(
+            {
+                "affectation": affectation,
+                "surveillance_rows": [
+                    {
+                        "surveillance": surveillance,
+                        "can_remove": is_admin or surveillance.surveillant_id == request.user.pk,
+                        "can_manage_responsibilities": is_admin,
+                    }
+                    for surveillance in surveillances
+                ],
+                "is_locked": affectation.is_registration_locked(),
+                "is_full": affectation.is_complete,
+                "current_user_surveillance": (
+                    current_user_surveillance
+                    if current_user_surveillance and current_user_surveillance.affectation_salle_id == affectation.pk
+                    else None
+                ),
+                "room_responsable": next(
+                    (surveillance for surveillance in surveillances if surveillance.is_responsable_salle),
+                    None,
+                ),
+            }
+        )
+
+    return {
+        "examen": exam,
+        "metrics": metrics,
+        "room_rows": room_rows,
+        "current_user_surveillance": current_user_surveillance,
+        "is_admin_user": is_admin,
+    }
+
+
+class ExamCompletionMixin(LoginRequiredMixin):
     def dispatch(self, request, *args, **kwargs):
+        self.is_admin = is_admin_user(request.user)
         self.examen = get_object_or_404(
-            Examen.objects.select_related("session", "session__formation", "session__formation__annee_universitaire", "up", "up__ue", "responsable").prefetch_related(
+            Examen.objects.select_related(
+                "session",
+                "session__formation",
+                "session__formation__annee_universitaire",
+                "ue",
+            ).prefetch_related(
                 "affectations_salles__salle",
-                "surveillances__surveillant",
+                "affectations_salles__surveillances__surveillant",
             ),
             pk=kwargs["pk"],
         )
         return super().dispatch(request, *args, **kwargs)
 
+    def success_url(self):
+        return reverse("exams:exam_complete", args=[self.examen.pk])
+
+    def exam_list_url(self):
+        return reverse("exams:exam_list")
+
+    def render_page(self, request, template_name, **extra_context):
+        context = build_completion_context(request, self.examen, self.is_admin)
+        context.update(
+            {
+                "back_to_list_url": self.exam_list_url(),
+            }
+        )
+        context.update(extra_context)
+        return render(request, template_name, context)
+
+    def get_current_user_surveillance(self, request):
+        if self.is_admin:
+            return None
+        return self.examen.surveillances.filter(
+            surveillant=request.user
+        ).select_related("affectation_salle__salle").first()
+
+    def deny_if_not_admin(self, request):
+        if self.is_admin:
+            return None
+        messages.error(request, "Action non autorisée.")
+        return redirect(self.success_url())
+
+    def _get_or_create_user_from_registration(self, form):
+        email = form.cleaned_data["email"].strip().lower()
+        first_name = form.cleaned_data["first_name"].strip()
+        last_name = form.cleaned_data["last_name"].strip()
+        role = form.cleaned_data.get("role", RoleUtilisateur.MEMBRE_POOL)
+        user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
+        created = False
+        if user is None:
+            user = User.objects.create_user(
+                username=build_unique_username(first_name, last_name, email),
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                role=role,
+                password=DEFAULT_SURVEILLANT_PASSWORD,
+            )
+            created = True
+        else:
+            updated = False
+            if first_name and not user.first_name:
+                user.first_name = first_name
+                updated = True
+            if last_name and not user.last_name:
+                user.last_name = last_name
+                updated = True
+            if updated:
+                user.save(update_fields=["first_name", "last_name"])
+        return user, created
+
+    def _build_registration_form(self, request, affectation):
+        if self.is_admin:
+            return AdminRoomRegistrationForm(request.POST, general_available=True, room_available=True)
+        return SelfRoomRegistrationForm(
+            request.POST,
+            general_available=self._is_general_available_for_user(request.user),
+            room_available=self._is_room_available_for_user(affectation, request.user),
+        )
+
+    def _render_registration_page(self, request, form, affectation, current_user_surveillance):
+        general_locked = False
+        room_locked = False
+        if not self.is_admin:
+            general_locked = bool(form.fields.get("is_responsable_general") and form.fields["is_responsable_general"].disabled)
+            room_locked = bool(form.fields.get("is_responsable_salle") and form.fields["is_responsable_salle"].disabled)
+        return self.render_page(
+            request,
+            "exams/exam_completion_register.html",
+            affectation=affectation,
+            form=form,
+            room_is_full=affectation.is_complete,
+            room_is_locked=affectation.is_registration_locked(),
+            already_registered_on_room=(
+                current_user_surveillance is not None
+                and current_user_surveillance.affectation_salle_id == affectation.pk
+            ) if not self.is_admin else False,
+            general_responsable_locked=general_locked,
+            room_responsable_locked=room_locked,
+        )
+
+    def _render_new_user_role_choice_page(self, request, affectation, confirmation_form):
+        preview = {
+            "first_name": confirmation_form.data.get("first_name") or confirmation_form.initial.get("first_name", ""),
+            "last_name": confirmation_form.data.get("last_name") or confirmation_form.initial.get("last_name", ""),
+            "email": confirmation_form.data.get("email") or confirmation_form.initial.get("email", ""),
+        }
+        return self.render_page(
+            request,
+            "exams/exam_completion_register_new_user.html",
+            affectation=affectation,
+            confirmation_form=confirmation_form,
+            new_user_preview=preview,
+        )
+
+    def _save_surveillance(self, request, affectation, user, *, is_responsable_general=False, is_responsable_salle=False):
+        surveillance = Surveillance(
+            affectation_salle=affectation,
+            surveillant=user,
+            is_responsable_general=is_responsable_general,
+            is_responsable_salle=is_responsable_salle,
+        )
+        previous_states = {"general": [], "room": []}
+        previous_states = self._reassign_responsibilities_if_needed(surveillance)
+        surveillance.full_clean()
+        surveillance.save()
+        return previous_states, surveillance
+
+    def _reassign_responsibilities_if_needed(self, surveillance):
+        previous_states = {"general": [], "room": []}
+        if not self.is_admin:
+            return previous_states
+        if surveillance.is_responsable_general:
+            qs = Surveillance.objects.filter(
+                affectation_salle__examen=surveillance.affectation_salle.examen,
+                is_responsable_general=True,
+            ).exclude(pk=surveillance.pk)
+            previous_states["general"] = list(qs.values_list("pk", flat=True))
+            qs.update(is_responsable_general=False)
+        if surveillance.is_responsable_salle:
+            qs = Surveillance.objects.filter(
+                affectation_salle=surveillance.affectation_salle,
+                is_responsable_salle=True,
+            ).exclude(pk=surveillance.pk)
+            previous_states["room"] = list(qs.values_list("pk", flat=True))
+            qs.update(is_responsable_salle=False)
+        return previous_states
+
+    def _restore_responsibilities(self, previous_states):
+        if previous_states.get("general"):
+            Surveillance.objects.filter(pk__in=previous_states["general"]).update(is_responsable_general=True)
+        if previous_states.get("room"):
+            Surveillance.objects.filter(pk__in=previous_states["room"]).update(is_responsable_salle=True)
+
+    def _attach_validation_error(self, form, exc):
+        if hasattr(exc, "message_dict"):
+            for field, errors in exc.message_dict.items():
+                target_field = field if field in form.fields else None
+                for error in errors:
+                    form.add_error(target_field, error)
+            return
+        for error in exc.messages:
+            form.add_error(None, error)
+
+    def _is_general_available_for_user(self, user):
+        current = self.examen.surveillances.filter(is_responsable_general=True).first()
+        return current is None or current.surveillant_id == user.pk
+
+    def _is_room_available_for_user(self, affectation, user):
+        current = affectation.surveillances.filter(is_responsable_salle=True).first()
+        return current is None or current.surveillant_id == user.pk
+
+
+class ExamCompleteView(ExamCompletionMixin, View):
+    template_name = "exams/exam_complete.html"
+
     def get(self, request, *args, **kwargs):
-        room_form = ExamCompletionRoomForm(examen=self.examen)
-        surveillance_form = ExamCompletionSurveillanceForm(examen=self.examen)
-        return self.render_page(request, room_form, surveillance_form)
+        return self.render_page(request, self.template_name)
 
-    def post(self, request, *args, **kwargs):
-        action = request.POST.get("action")
-        room_form = ExamCompletionRoomForm(examen=self.examen)
-        surveillance_form = ExamCompletionSurveillanceForm(examen=self.examen)
 
-        if action == "add_room":
-            room_form = ExamCompletionRoomForm(request.POST, examen=self.examen)
-            if room_form.is_valid():
-                room_form.save()
-                self.examen.update_statut(save=True)
-                messages.success(request, "Salle affectée.")
-                return redirect("exams:exam_complete", pk=self.examen.pk)
-        elif action == "add_surveillance":
-            surveillance_form = ExamCompletionSurveillanceForm(request.POST, examen=self.examen)
-            if surveillance_form.is_valid():
-                surveillance_form.save()
-                self.examen.update_statut(save=True)
-                messages.success(request, "Surveillant inscrit.")
-                return redirect("exams:exam_complete", pk=self.examen.pk)
-        elif action == "update_room":
-            room_id = request.POST.get("room_id")
-            affectation = get_object_or_404(AffectationSalle, pk=room_id, examen=self.examen)
-            room_form = ExamCompletionRoomForm(
-                request.POST,
-                examen=self.examen,
-                instance=affectation,
-                prefix=f"room-{affectation.pk}",
-            )
-            if room_form.is_valid():
-                room_form.save()
-                self.examen.update_statut(save=True)
-                messages.success(request, "Affectation salle mise à jour.")
-                return redirect("exams:exam_complete", pk=self.examen.pk)
-        elif action == "delete_room":
-            room_id = request.POST.get("room_id")
-            affectation = get_object_or_404(AffectationSalle, pk=room_id, examen=self.examen)
-            remaining_capacity = sum(
-                affect.capacite_effective
-                for affect in self.examen.affectations_salles.exclude(pk=affectation.pk).select_related("salle")
-            )
-            if self.examen.nb_eleves_tiers_temps > 0 and affectation.is_tiers_temps:
-                remaining_tiers = self.examen.affectations_salles.exclude(pk=affectation.pk).filter(
-                    is_tiers_temps=True
-                ).exists()
-                if not remaining_tiers:
-                    messages.error(
-                        request,
-                        "Suppression impossible : une salle tiers-temps est obligatoire pour cet examen.",
-                    )
-                    return redirect("exams:exam_complete", pk=self.examen.pk)
-            if remaining_capacity < self.examen.nb_eleves:
-                messages.error(
-                    request,
-                    f"Suppression impossible : capacité insuffisante après suppression ({remaining_capacity} / {self.examen.nb_eleves}).",
-                )
-                return redirect("exams:exam_complete", pk=self.examen.pk)
-            affectation.delete()
-            self.examen.update_statut(save=True)
-            messages.success(request, "Affectation salle supprimée.")
-            return redirect("exams:exam_complete", pk=self.examen.pk)
-        elif action == "delete_surveillance":
-            surveillance_id = request.POST.get("surveillance_id")
-            surveillance = get_object_or_404(Surveillance, pk=surveillance_id, examen=self.examen)
-            surveillance.delete()
-            self.examen.update_statut(save=True)
-            messages.success(request, "Inscription surveillance supprimée.")
-            return redirect("exams:exam_complete", pk=self.examen.pk)
+class ExamRoomCreateView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_room_form.html"
 
-        return self.render_page(request, room_form, surveillance_form)
-
-    def render_page(self, request, room_form, surveillance_form):
-        metrics = completion_metrics(self.examen)
-        room_edit_rows = []
-        for affectation in self.examen.affectations_salles.all():
-            edit_form = ExamCompletionRoomForm(
-                examen=self.examen,
-                instance=affectation,
-                prefix=f"room-{affectation.pk}",
-            )
-            if room_form.instance.pk == affectation.pk:
-                edit_form = room_form
-            room_edit_rows.append({"affectation": affectation, "form": edit_form})
-        return render(
+    def get(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        return self.render_page(
             request,
             self.template_name,
-            {
-                "examen": self.examen,
-                "room_form": room_form,
-                "room_edit_rows": room_edit_rows,
-                "surveillance_form": surveillance_form,
-                "metrics": metrics,
-            },
+            form=ExamCompletionRoomForm(examen=self.examen),
+            page_title="Ajouter une salle",
+            submit_label="Ajouter la salle",
+        )
+
+    def post(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        form = ExamCompletionRoomForm(request.POST, examen=self.examen)
+        if form.is_valid():
+            form.save()
+            self.examen.update_statut(save=True)
+            messages.success(request, "Salle affectée.")
+            return redirect(self.success_url())
+        return self.render_page(
+            request,
+            self.template_name,
+            form=form,
+            page_title="Ajouter une salle",
+            submit_label="Ajouter la salle",
+        )
+
+
+class ExamRoomUpdateView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_room_form.html"
+
+    def get_affectation(self):
+        return get_object_or_404(AffectationSalle, pk=self.kwargs["room_pk"], examen=self.examen)
+
+    def get(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.affectation = self.get_affectation()
+        return self.render_page(
+            request,
+            self.template_name,
+            form=ExamCompletionRoomForm(examen=self.examen, instance=self.affectation),
+            affectation=self.affectation,
+            page_title=f"Modifier la salle {self.affectation.salle.nom}",
+            submit_label="Enregistrer",
+        )
+
+    def post(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.affectation = self.get_affectation()
+        form = ExamCompletionRoomForm(request.POST, examen=self.examen, instance=self.affectation)
+        if form.is_valid():
+            form.save()
+            self.examen.update_statut(save=True)
+            messages.success(request, "Affectation salle mise à jour.")
+            return redirect(self.success_url())
+        return self.render_page(
+            request,
+            self.template_name,
+            form=form,
+            affectation=self.affectation,
+            page_title=f"Modifier la salle {self.affectation.salle.nom}",
+            submit_label="Enregistrer",
+        )
+
+
+class ExamRoomDeleteView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_room_confirm_delete.html"
+
+    def get_affectation(self):
+        return get_object_or_404(AffectationSalle, pk=self.kwargs["room_pk"], examen=self.examen)
+
+    def get(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.affectation = self.get_affectation()
+        return self.render_page(
+            request,
+            self.template_name,
+            affectation=self.affectation,
+            has_surveillances=self.affectation.surveillances.exists(),
+        )
+
+    def post(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.affectation = self.get_affectation()
+        if self.affectation.surveillances.exists():
+            messages.error(
+                request,
+                "Suppression impossible : désinscris d'abord tous les surveillants de cette salle.",
+            )
+            return redirect(self.success_url())
+        self.affectation.delete()
+        self.examen.update_statut(save=True)
+        messages.success(request, "Salle supprimée pour cet examen.")
+        return redirect(self.success_url())
+
+
+class ExamRoomRegisterView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_register.html"
+
+    def get_affectation(self):
+        return get_object_or_404(
+            AffectationSalle.objects.select_related("salle", "examen"),
+            pk=self.kwargs["room_pk"],
+            examen=self.examen,
+        )
+
+    def get_form(self, request):
+        if self.is_admin:
+            return AdminRoomRegistrationForm(general_available=True, room_available=True)
+        return SelfRoomRegistrationForm(
+            general_available=self._is_general_available_for_user(request.user),
+            room_available=self._is_room_available_for_user(self.affectation, request.user),
+        )
+
+    def get(self, request, *args, **kwargs):
+        self.affectation = self.get_affectation()
+        current_user_surveillance = self.get_current_user_surveillance(request)
+        return self._render_registration_page(
+            request,
+            self.get_form(request),
+            self.affectation,
+            current_user_surveillance,
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.affectation = self.get_affectation()
+        current_user_surveillance = self.get_current_user_surveillance(request)
+        if self.is_admin and request.POST.get("confirm_new_user") == "1":
+            confirmation_form = AdminNewUserRoleChoiceForm(request.POST)
+            if confirmation_form.is_valid():
+                user, created = self._get_or_create_user_from_registration(confirmation_form)
+                previous_states = {"general": [], "room": []}
+                try:
+                    previous_states, _ = self._save_surveillance(
+                        request,
+                        self.affectation,
+                        user,
+                        is_responsable_general=confirmation_form.cleaned_data.get("is_responsable_general", False),
+                        is_responsable_salle=confirmation_form.cleaned_data.get("is_responsable_salle", False),
+                    )
+                except ValidationError as exc:
+                    self._restore_responsibilities(previous_states)
+                    self._attach_validation_error(confirmation_form, exc)
+                else:
+                    if created:
+                        messages.success(
+                            request,
+                            (
+                                f"Nouvel utilisateur créé et inscrit : {user.display_full_name} "
+                                f"(mot de passe par défaut : {DEFAULT_SURVEILLANT_PASSWORD})."
+                            ),
+                        )
+                    else:
+                        messages.success(request, "Utilisateur existant inscrit à la salle.")
+                    return redirect(self.success_url())
+            return self._render_new_user_role_choice_page(request, self.affectation, confirmation_form)
+
+        form = self._build_registration_form(request, self.affectation)
+        if form.is_valid():
+            if self.is_admin:
+                email = form.cleaned_data["email"].strip().lower()
+                existing_user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
+                if existing_user is None:
+                    confirmation_form = AdminNewUserRoleChoiceForm(
+                        initial={
+                            "first_name": form.cleaned_data["first_name"].strip(),
+                            "last_name": form.cleaned_data["last_name"].strip(),
+                            "email": email,
+                            "is_responsable_general": form.cleaned_data.get("is_responsable_general", False),
+                            "is_responsable_salle": form.cleaned_data.get("is_responsable_salle", False),
+                            "role": RoleUtilisateur.MEMBRE_POOL,
+                        }
+                    )
+                    return self._render_new_user_role_choice_page(request, self.affectation, confirmation_form)
+
+            user = request.user
+            created = False
+            if self.is_admin:
+                user, created = self._get_or_create_user_from_registration(form)
+
+            previous_states = {"general": [], "room": []}
+            try:
+                previous_states, _ = self._save_surveillance(
+                    request,
+                    self.affectation,
+                    user,
+                    is_responsable_general=form.cleaned_data.get("is_responsable_general", False),
+                    is_responsable_salle=form.cleaned_data.get("is_responsable_salle", False),
+                )
+            except ValidationError as exc:
+                self._restore_responsibilities(previous_states)
+                self._attach_validation_error(form, exc)
+            else:
+                if self.is_admin and created:
+                    messages.success(
+                        request,
+                        (
+                            f"Utilisateur créé et inscrit : {user.display_full_name} "
+                            f"(mot de passe par défaut : {DEFAULT_SURVEILLANT_PASSWORD})."
+                        ),
+                    )
+                elif self.is_admin:
+                    messages.success(request, "Utilisateur inscrit à la salle.")
+                else:
+                    messages.success(request, "Inscription à la salle enregistrée.")
+                return redirect(self.success_url())
+        return self._render_registration_page(
+            request,
+            form,
+            self.affectation,
+            current_user_surveillance,
+        )
+
+
+class ExamSurveillanceDeleteView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_surveillance_confirm_delete.html"
+
+    def get_surveillance(self):
+        return get_object_or_404(
+            Surveillance.objects.select_related("surveillant", "affectation_salle__salle", "affectation_salle__examen"),
+            pk=self.kwargs["surveillance_pk"],
+            affectation_salle__examen=self.examen,
+        )
+
+    def _is_allowed(self, request):
+        return self.is_admin or self.surveillance.surveillant_id == request.user.pk
+
+    def get(self, request, *args, **kwargs):
+        self.surveillance = self.get_surveillance()
+        if not self._is_allowed(request):
+            messages.error(request, "Action non autorisée.")
+            return redirect(self.success_url())
+        return self.render_page(
+            request,
+            self.template_name,
+            surveillance=self.surveillance,
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.surveillance = self.get_surveillance()
+        if not self._is_allowed(request):
+            messages.error(request, "Action non autorisée.")
+            return redirect(self.success_url())
+        self.surveillance.delete()
+        self.examen.update_statut(save=True)
+        messages.success(request, "Inscription supprimée.")
+        return redirect(self.success_url())
+
+
+class ExamSurveillanceResponsibilityUpdateView(ExamCompletionMixin, View):
+    template_name = "exams/exam_completion_responsibility_form.html"
+
+    def get_surveillance(self):
+        return get_object_or_404(
+            Surveillance.objects.select_related("surveillant", "affectation_salle__salle", "affectation_salle__examen"),
+            pk=self.kwargs["surveillance_pk"],
+            affectation_salle__examen=self.examen,
+        )
+
+    def get(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.surveillance = self.get_surveillance()
+        return self.render_page(
+            request,
+            self.template_name,
+            surveillance=self.surveillance,
+            form=SurveillanceResponsibilityForm(
+                initial={
+                    "is_responsable_general": self.surveillance.is_responsable_general,
+                    "is_responsable_salle": self.surveillance.is_responsable_salle,
+                }
+            ),
+        )
+
+    def post(self, request, *args, **kwargs):
+        denied = self.deny_if_not_admin(request)
+        if denied:
+            return denied
+        self.surveillance = self.get_surveillance()
+        form = SurveillanceResponsibilityForm(request.POST)
+        if form.is_valid():
+            updated_surveillance = self.surveillance
+            updated_surveillance.is_responsable_general = form.cleaned_data.get("is_responsable_general", False)
+            updated_surveillance.is_responsable_salle = form.cleaned_data.get("is_responsable_salle", False)
+            previous_states = {"general": [], "room": []}
+            try:
+                previous_states = self._reassign_responsibilities_if_needed(updated_surveillance)
+                updated_surveillance.full_clean()
+                updated_surveillance.save()
+            except ValidationError as exc:
+                self._restore_responsibilities(previous_states)
+                self._attach_validation_error(form, exc)
+            else:
+                messages.success(request, "Responsabilités mises à jour.")
+                return redirect(self.success_url())
+        return self.render_page(
+            request,
+            self.template_name,
+            surveillance=self.surveillance,
+            form=form,
         )
 
 
