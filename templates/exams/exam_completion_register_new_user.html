@@ -11,6 +11,8 @@
       <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Retour au formulaire</a>
     </div>
 
+    {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
+
     <div class="card exam-form-card">
       <form method="post" novalidate class="exam-form-layout">
         {% csrf_token %}
@@ -36,7 +38,7 @@
         </div>
 
         <p class="page-subtitle" style="margin:0;">
-          Aucun compte existant n'a été trouvé avec cette adresse email. Choisis le rôle à attribuer avant de créer puis inscrire cet utilisateur à la salle.
+          Aucun compte existant n'est associé à cette adresse email. Sélectionne un rôle avant la création du compte et l'inscription à la salle.
         </p>
 
         <div class="form-field">

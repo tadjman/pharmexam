@@ -11,11 +11,13 @@
       <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
     </div>
 
+    {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
+
     <div class="card exam-form-card">
       {% if not is_admin_user and already_registered_on_room %}
-        <p class="page-subtitle" style="margin-bottom:0;">Tu es déjà inscrit sur cette salle.</p>
+        <p class="page-subtitle" style="margin-bottom:0;">Inscription déjà enregistrée sur cette salle.</p>
       {% elif not is_admin_user and current_user_surveillance and not current_user_surveillance.affectation_salle_id == affectation.pk %}
-        <p class="page-subtitle" style="margin-bottom:0;">Tu es déjà inscrit sur une autre salle de cet examen.</p>
+        <p class="page-subtitle" style="margin-bottom:0;">Inscription déjà enregistrée sur une autre salle de cet examen.</p>
       {% elif room_is_full %}
         <p class="page-subtitle" style="margin-bottom:0;">Salle complète.</p>
       {% elif room_is_locked %}
@@ -48,7 +50,7 @@
             <span class="form-check__text">
               Responsable d'épreuve
               {% if not is_admin_user and general_responsable_locked %}
-                <span class="form-check__note">Responsable déjà défini</span>
+                <span class="form-check__note">responsable déjà défini</span>
               {% endif %}
             </span>
           </label>
@@ -59,7 +61,7 @@
             <span class="form-check__text">
               Responsable de salle
               {% if not is_admin_user and room_responsable_locked %}
-                <span class="form-check__note">Responsable déjà défini</span>
+                <span class="form-check__note">responsable déjà défini</span>
               {% endif %}
             </span>
           </label>

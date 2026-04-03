@@ -14,6 +14,8 @@
       <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
     </div>
 
+    {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
+
     <div class="card exam-form-card">
       <form method="post" novalidate class="exam-form-layout">
         {% csrf_token %}

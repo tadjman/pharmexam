@@ -163,6 +163,8 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(response, "Aucune salle n'est encore affectée à cet examen.")
         self.assertEqual(self.examen.affectations_salles.count(), 0)
         self.assertContains(response, "Responsable d'épreuve non défini")
+        self.assertContains(response, "exam-color-dot")
+        self.assertContains(response, self.examen.accent_color)
 
     def test_completion_page_returns_to_exam_list_and_not_exam_detail(self):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
@@ -180,6 +182,7 @@ class ExamCompletionViewTests(TestCase):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Responsable de salle non défini")
+        self.assertContains(response, "exam-room-card--attention")
 
     def test_completion_page_shows_missing_temps_majore_indicator(self):
         AffectationSalle.objects.create(
@@ -191,6 +194,48 @@ class ExamCompletionViewTests(TestCase):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Temps majoré non défini")
+
+    def test_completion_page_displays_inactive_year_flag(self):
+        inactive_year = AnneeUniversitaire.objects.create(
+            nom="2035/2036",
+            date_debut=date(2035, 9, 1),
+            date_fin=date(2036, 7, 31),
+            is_active=False,
+        )
+        formation = Formation.objects.create(annee_universitaire=inactive_year, nom="Formation inactive completion")
+        formation.ues.add(self.ue)
+        session = SessionExamen.objects.create(
+            formation=formation,
+            nom="Session inactive completion",
+        )
+        exam = Examen.objects.create(
+            session=session,
+            ue=self.ue,
+            nom="Examen année inactive",
+            date=date(2036, 2, 11),
+            heure_debut=time(10, 0),
+            heure_fin=time(12, 0),
+        )
+        response = self.client.get(reverse("exams:exam_complete", args=[exam.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attention, année inactive")
+
+    def test_completion_page_shows_complete_styles_when_requirements_are_met(self):
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=Salle.objects.create(nom="Salle complete"),
+            nb_surveillants_requis=1,
+            temps_majore=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=self.admin_user,
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
+        response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "exam-room-card--complete")
 
 
 class SessionDeleteAndValidationTests(TestCase):
@@ -319,7 +364,41 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, reverse("rooms:salle_list"))
         self.assertContains(response, "btn--accent")
         self.assertContains(response, "Examen Toxicologie")
+        self.assertContains(response, "exam-color-dot")
+        self.assertContains(response, self.ue.couleur)
         self.assertNotContains(response, "Examen Pharmacologie")
+
+    def test_exam_list_displays_inactive_year_flag(self):
+        other_year = AnneeUniversitaire.objects.create(
+            nom="2031/2032",
+            date_debut=date(2031, 9, 1),
+            date_fin=date(2032, 7, 31),
+            is_active=False,
+        )
+        other_formation = Formation.objects.create(annee_universitaire=other_year, nom="Formation inactive")
+        other_formation.ues.add(self.ue)
+        other_session = SessionExamen.objects.create(
+            formation=other_formation,
+            nom="Session inactive",
+        )
+        Examen.objects.create(
+            session=other_session,
+            ue=self.ue,
+            nom="Examen inactif",
+            date=date(2032, 1, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {
+                "year": str(other_year.pk),
+                "formation": str(other_formation.pk),
+                "session": str(other_session.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attention, année inactive")
 
     def test_exam_list_keeps_last_selected_scope_when_reopened_without_params(self):
         self.client.get(
@@ -334,6 +413,102 @@ class SessionAndExamScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Examen Toxicologie")
         self.assertContains(response, "Session Janvier")
+
+    def test_exam_list_defaults_to_session_with_most_incomplete_exams(self):
+        Examen.objects.create(
+            session=self.session_a,
+            ue=self.ue,
+            nom="Examen Botanique",
+            date=date(2033, 1, 11),
+            heure_debut=time(14, 0),
+            heure_fin=time(16, 0),
+        )
+        response = self.client.get(reverse("exams:exam_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Session Janvier")
+        self.assertContains(response, "Examen Toxicologie")
+        self.assertContains(response, "Examen Botanique")
+        self.assertNotContains(response, "Examen Pharmacologie")
+
+    def test_exam_list_defaults_to_session_with_most_exams_when_everything_is_complete(self):
+        salle_a = Salle.objects.create(nom="Salle Session A")
+        salle_b = Salle.objects.create(nom="Salle Session B")
+        surveillant = User.objects.create_user(
+            username="pool_scope_complete",
+            password="pass",
+            role=RoleUtilisateur.MEMBRE_POOL,
+        )
+
+        exams = list(Examen.objects.order_by("nom"))
+        affectation_a = AffectationSalle.objects.create(
+            examen=exams[0],
+            salle=salle_a,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(affectation_salle=affectation_a, surveillant=surveillant)
+
+        affectation_b = AffectationSalle.objects.create(
+            examen=exams[1],
+            salle=salle_b,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(affectation_salle=affectation_b, surveillant=self.teacher_for_complete_exam())
+
+        Examen.objects.create(
+            session=self.session_b,
+            ue=self.ue,
+            nom="Examen Galénique",
+            date=date(2033, 6, 11),
+            heure_debut=time(14, 0),
+            heure_fin=time(16, 0),
+        )
+        extra_exam = Examen.objects.get(nom="Examen Galénique")
+        extra_room = Salle.objects.create(nom="Salle Session B 2")
+        extra_affectation = AffectationSalle.objects.create(
+            examen=extra_exam,
+            salle=extra_room,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=extra_affectation,
+            surveillant=User.objects.create_user(
+                username="pool_scope_complete_2",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+        )
+
+        response = self.client.get(reverse("exams:exam_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Session Juin")
+        self.assertContains(response, "Examen Pharmacologie")
+        self.assertContains(response, "Examen Galénique")
+        self.assertNotContains(response, "Examen Toxicologie")
+
+    def test_exam_list_defaults_to_latest_session_when_no_exam_exists(self):
+        Examen.objects.all().delete()
+        SessionExamen.objects.all().delete()
+        semester_1 = SessionExamen.objects.create(
+            formation=self.formation_a,
+            nom="Semestre 1",
+        )
+        SessionExamen.objects.create(
+            formation=self.formation_a,
+            nom="Semestre 2",
+        )
+        latest_session = SessionExamen.objects.create(
+            formation=self.formation_a,
+            nom="Rattrapages",
+        )
+        response = self.client.get(reverse("exams:exam_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, latest_session.nom)
+        self.assertContains(
+            response,
+            f'<option value="{latest_session.pk}" selected>{latest_session.nom}</option>',
+            html=True,
+        )
+        self.assertContains(response, "Aucun examen n'est encore rattaché à cette session.")
 
     def test_exam_list_displays_pagination_controls(self):
         for index in range(25):
@@ -356,6 +531,21 @@ class SessionAndExamScopeTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Page")
         self.assertContains(response, "Suivante")
+
+    def test_exam_update_page_displays_delete_button_with_confirmation(self):
+        exam = Examen.objects.get(nom="Examen Toxicologie")
+        response = self.client.get(reverse("exams:exam_update", args=[exam.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Supprimer")
+        self.assertContains(response, "Êtes-vous sûr de vouloir supprimer cet examen ?")
+        self.assertContains(response, reverse("exams:exam_delete", args=[exam.pk]))
+
+    def teacher_for_complete_exam(self):
+        return User.objects.create_user(
+            username="pool_scope_complete_teacher",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+        )
 
     def test_default_session_order_is_semesters_then_rattrapages_then_others(self):
         formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation ordre")

@@ -12,10 +12,12 @@
         <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour aux formations</a>
         <a class="btn btn--outline" href="{% url 'exams:exam_list' %}?year={{ formation.annee_universitaire_id }}&formation={{ formation.pk }}">Voir les examens</a>
         {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-          <a class="btn btn--soft" href="{% url 'academics:formation_update' formation.pk %}">Modifier</a>
+          <a class="btn btn--accent" href="{% url 'academics:formation_update' formation.pk %}">Modifier</a>
         {% endif %}
       </div>
     </div>
+
+    {% include "includes/inactive_year_flag.html" with year=formation.annee_universitaire %}
 
     <div class="card section-card">
       <div class="section-card__title">

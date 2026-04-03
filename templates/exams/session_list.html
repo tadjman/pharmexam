@@ -26,6 +26,7 @@
     </div>
 
     {% if selected_formation_obj %}
+      {% include "includes/inactive_year_flag.html" with year=selected_formation_obj.annee_universitaire %}
       <div class="card section-card">
         <div class="section-card__header">
           <div class="section-card__title">

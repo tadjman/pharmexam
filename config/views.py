@@ -1,12 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count
-from django.utils import timezone
 from django.views.generic import TemplateView
 
-from academics.models import AnneeUniversitaire, Formation
-from assignments.models import Surveillance
-from exams.models import Examen, SessionExamen, StatutExamen
-from rooms.models import Salle
+from academics.models import AnneeUniversitaire
+from accounts.models import RoleUtilisateur
+from exams.models import Examen, StatutExamen
 
 
 def get_active_year(request):
@@ -19,16 +16,49 @@ def get_active_year(request):
 class TableauDeBordView(LoginRequiredMixin, TemplateView):
     template_name = "pages/dashboard.html"
 
+    status_priority = {
+        StatutExamen.INCOMPLET: 0,
+        StatutExamen.INITIE: 1,
+        StatutExamen.COMPLET: 2,
+        StatutExamen.TERMINE: 3,
+    }
+
+    status_badges = {
+        StatutExamen.INITIE: "",
+        StatutExamen.INCOMPLET: "badge--warning",
+        StatutExamen.COMPLET: "badge--success",
+        StatutExamen.TERMINE: "badge--info",
+    }
+
+    def _get_exam_missing_surveillants(self, affectations):
+        return sum(
+            max(0, affectation.nb_surveillants_requis - len(affectation.surveillances.all()))
+            for affectation in affectations
+        )
+
+    def _build_exam_attention_item(self, exam):
+        affectations = list(exam.affectations_salles.all())
+        missing_surveillants = self._get_exam_missing_surveillants(affectations)
+        room_count = len(affectations)
+        needs_rooms = room_count == 0
+        return {
+            "exam": exam,
+            "missing_surveillants": missing_surveillants,
+            "room_count": room_count,
+            "needs_rooms": needs_rooms,
+            "has_missing_surveillants": missing_surveillants > 0,
+            "status_badge_class": self.status_badges.get(exam.statut, ""),
+            "status_priority": self.status_priority.get(exam.statut, 99),
+        }
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         active_year = get_active_year(self.request)
         ctx["active_year"] = active_year
+        ctx["is_admin_scope"] = self.request.user.is_superuser or self.request.user.is_staff or (
+            getattr(self.request.user, "role", "") == RoleUtilisateur.SCOLARITE
+        )
 
-        sessions = SessionExamen.objects.none()
-        formations = Formation.objects.none()
-        exams = Examen.objects.none()
-        surveillances = Surveillance.objects.none()
-        upcoming_exams = []
         exams_by_status = {
             StatutExamen.INITIE: 0,
             StatutExamen.INCOMPLET: 0,
@@ -36,54 +66,107 @@ class TableauDeBordView(LoginRequiredMixin, TemplateView):
             StatutExamen.TERMINE: 0,
         }
 
+        exams = []
+        incomplete_exams = []
+        formations_requiring_attention = []
+        missing_surveillants_total = 0
+
         if active_year:
-            formations = Formation.objects.filter(annee_universitaire=active_year).annotate(
-                session_count=Count("sessions", distinct=True),
-                exam_count=Count("sessions__examens", distinct=True),
-            ).order_by("nom")
-            sessions = SessionExamen.objects.filter(formation__annee_universitaire=active_year)
-            exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
-                "session",
-                "session__formation",
-                "ue",
+            exams = list(
+                Examen.objects.filter(session__formation__annee_universitaire=active_year)
+                .select_related("session", "session__formation", "ue")
+                .prefetch_related("affectations_salles__surveillances")
+                .order_by("date", "heure_debut", "nom")
             )
             for exam in exams:
                 exam.update_statut(save=True)
-            exams = Examen.objects.filter(session__formation__annee_universitaire=active_year).select_related(
-                "session",
-                "session__formation",
-                "ue",
-            )
-            surveillances = Surveillance.objects.filter(
-                affectation_salle__examen__session__formation__annee_universitaire=active_year
-            )
-            status_counts = exams.values("statut").annotate(total=Count("id"))
-            exams_by_status.update({row["statut"]: row["total"] for row in status_counts})
-            now = timezone.now()
-            upcoming_exams = [
-                exam for exam in exams.order_by("date", "heure_debut")
-                if exam.end_dt >= now
-            ][:5]
+                exams_by_status[exam.statut] = exams_by_status.get(exam.statut, 0) + 1
 
-        total_exams = exams.count()
-        completion_rate = int((exams_by_status[StatutExamen.COMPLET] / total_exams) * 100) if total_exams else 0
+            formation_index = {}
+            for exam in exams:
+                if exam.statut not in {StatutExamen.INITIE, StatutExamen.INCOMPLET}:
+                    continue
 
-        ctx["kpis"] = {
-            "years": AnneeUniversitaire.objects.count(),
-            "formations": formations.count(),
-            "sessions": sessions.count(),
-            "exams": total_exams,
-            "surveillances": surveillances.count(),
-            "rooms": Salle.objects.count(),
-            "completion_rate": completion_rate,
-            "complete": exams_by_status[StatutExamen.COMPLET],
-            "incomplete": exams_by_status[StatutExamen.INCOMPLET],
-            "initie": exams_by_status[StatutExamen.INITIE],
-            "termine": exams_by_status[StatutExamen.TERMINE],
-        }
-        ctx["formations"] = formations
-        ctx["upcoming_exams"] = upcoming_exams
-        ctx["incomplete_exams"] = list(
-            exams.filter(statut__in=[StatutExamen.INITIE, StatutExamen.INCOMPLET]).order_by("date", "heure_debut")[:5]
-        ) if active_year else []
+                attention_item = self._build_exam_attention_item(exam)
+                incomplete_exams.append(attention_item)
+                missing_surveillants_total += attention_item["missing_surveillants"]
+
+                formation = exam.session.formation
+                formation_entry = formation_index.setdefault(
+                    formation.pk,
+                    {
+                        "formation": formation,
+                        "session_names": set(),
+                        "exam_count": 0,
+                        "missing_surveillants": 0,
+                    },
+                )
+                formation_entry["session_names"].add(exam.session.nom)
+                formation_entry["exam_count"] += 1
+                formation_entry["missing_surveillants"] += attention_item["missing_surveillants"]
+
+            formations_requiring_attention = sorted(
+                [
+                    {
+                        "formation": entry["formation"],
+                        "session_count": len(entry["session_names"]),
+                        "exam_count": entry["exam_count"],
+                        "missing_surveillants": entry["missing_surveillants"],
+                    }
+                    for entry in formation_index.values()
+                ],
+                key=lambda item: (
+                    -item["missing_surveillants"],
+                    -item["exam_count"],
+                    item["formation"].nom.lower(),
+                ),
+            )
+
+            incomplete_exams.sort(
+                key=lambda item: (
+                    item["status_priority"],
+                    -(1 if item["has_missing_surveillants"] else 0),
+                    -item["missing_surveillants"],
+                    item["exam"].date,
+                    item["exam"].heure_debut,
+                    item["exam"].nom.lower(),
+                )
+            )
+
+        ctx["status_cards"] = [
+            {
+                "label": "Initié",
+                "value": exams_by_status[StatutExamen.INITIE],
+                "badge_class": "",
+                "panel_class": "status-panel--initie",
+            },
+            {
+                "label": "Incomplet",
+                "value": exams_by_status[StatutExamen.INCOMPLET],
+                "badge_class": "badge--warning",
+                "panel_class": "status-panel--warning",
+            },
+            {
+                "label": "Complet",
+                "value": exams_by_status[StatutExamen.COMPLET],
+                "badge_class": "badge--success",
+                "panel_class": "status-panel--success",
+            },
+            {
+                "label": "Terminé",
+                "value": exams_by_status[StatutExamen.TERMINE],
+                "badge_class": "badge--info",
+                "panel_class": "status-panel--info",
+            },
+        ]
+        ctx["exams_to_complete_count"] = len(incomplete_exams)
+        ctx["missing_surveillants_total"] = missing_surveillants_total
+        ctx["formations_requiring_attention"] = formations_requiring_attention
+        ctx["incomplete_exams"] = incomplete_exams[:6]
+        ctx["has_urgent_needs"] = bool(missing_surveillants_total or incomplete_exams)
+        ctx["dashboard_message"] = (
+            "Des examens incomplets ou initiés sont actuellement enregistrés sur l'année active."
+            if ctx["has_urgent_needs"]
+            else "Aucun examen incomplet ou initié n'est actuellement enregistré sur l'année active."
+        )
         return ctx

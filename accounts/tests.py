@@ -6,6 +6,7 @@ from django.urls import reverse
 from academics.models import AnneeUniversitaire, Formation, UE
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
+from rooms.models import AffectationSalle, Salle
 
 
 class AuthenticationTests(TestCase):
@@ -71,7 +72,7 @@ class AuthenticationTests(TestCase):
             formation=formation,
             nom="Session KPI",
         )
-        Examen.objects.create(
+        exam = Examen.objects.create(
             session=session,
             ue=ue,
             nom="Exam KPI",
@@ -79,10 +80,19 @@ class AuthenticationTests(TestCase):
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
         )
+        salle = Salle.objects.create(nom="Salle KPI")
+        AffectationSalle.objects.create(
+            examen=exam,
+            salle=salle,
+            nb_surveillants_requis=2,
+        )
         self.client.force_login(self.user)
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Taux de complétion")
+        self.assertContains(response, "État des examens")
+        self.assertContains(response, "surveillants manquants")
+        self.assertContains(response, "Formations avec examens incomplets")
+        self.assertContains(response, "Examens à compléter")
         self.assertContains(response, "Formation KPI")
         self.assertContains(response, "Exam KPI")
 

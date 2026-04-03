@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.views import View
@@ -34,7 +34,7 @@ def get_sessions_queryset(active_year, formation=None):
     return SessionExamen.ordered_queryset(sessions)
 
 
-def get_report_rows(active_year, formation=None, session=None, role="", query=""):
+def get_report_rows(active_year, formation=None, session=None, roles=None, query=""):
     sessions = get_sessions_queryset(active_year, formation=formation)
     surveillance_qs = Surveillance.objects.filter(
         affectation_salle__examen__session__formation__annee_universitaire=active_year
@@ -54,10 +54,19 @@ def get_report_rows(active_year, formation=None, session=None, role="", query=""
         Prefetch("surveillances", queryset=surveillance_qs, to_attr="report_surveillances")
     ).order_by("username")
 
-    if role in {choice[0] for choice in RoleUtilisateur.choices}:
-        users_qs = users_qs.filter(role=role)
+    allowed_roles = {choice[0] for choice in RoleUtilisateur.choices}
+    if roles is not None:
+        selected_roles = [role for role in roles if role in allowed_roles]
+        if selected_roles:
+            users_qs = users_qs.filter(role__in=selected_roles)
+        else:
+            users_qs = users_qs.none()
     if query:
-        users_qs = users_qs.filter(username__icontains=query)
+        users_qs = users_qs.filter(
+            Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(username__icontains=query)
+        )
 
     rows = []
     detail_rows = []
@@ -66,6 +75,8 @@ def get_report_rows(active_year, formation=None, session=None, role="", query=""
             getattr(user, "report_surveillances", []),
             key=lambda item: (item.examen.date, item.examen.heure_debut, item.examen.nom),
         )
+        if not surveillances:
+            continue
         total_minutes = sum(item.examen.duree_minutes for item in surveillances)
         exam_details = [
             {
@@ -101,7 +112,15 @@ def get_report_rows(active_year, formation=None, session=None, role="", query=""
             }
         )
 
-    rows.sort(key=lambda row: (-row["exam_count"], -row["total_minutes"], row["user"].username))
+    rows.sort(
+        key=lambda row: (
+            -row["total_minutes"],
+            -row["exam_count"],
+            row["user"].display_last_name,
+            row["user"].display_first_name,
+            row["user"].username,
+        )
+    )
     totals = {
         "users": len(rows),
         "exam_count": sum(row["exam_count"] for row in rows),
@@ -394,12 +413,32 @@ class ActivityReportView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        _, rows, totals, detail_rows = get_report_rows(self.active_year)
+        query = self.request.GET.get("q", "").strip()
+        default_roles = [choice[0] for choice in RoleUtilisateur.choices]
+        if "filters" in self.request.GET:
+            selected_roles = [
+                role for role in self.request.GET.getlist("roles")
+                if role in default_roles
+            ]
+        else:
+            selected_roles = default_roles
+
+        _, rows, totals, detail_rows = get_report_rows(
+            self.active_year,
+            roles=selected_roles,
+            query=query,
+        )
 
         ctx["active_year"] = self.active_year
         ctx["rows"] = rows
         ctx["detail_rows"] = detail_rows
         ctx["totals"] = totals
+        ctx["query"] = query
+        ctx["selected_roles"] = selected_roles
+        ctx["role_options"] = [
+            {"value": value, "label": label}
+            for value, label in RoleUtilisateur.choices
+        ]
         return ctx
 
 

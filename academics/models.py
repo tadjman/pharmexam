@@ -1,9 +1,29 @@
 import uuid
+import random
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.dateparse import parse_date
+
+
+UE_COLOR_PALETTE = (
+    "#2563EB",
+    "#1D4ED8",
+    "#3B82F6",
+    "#4F46E5",
+    "#6366F1",
+    "#7C3AED",
+    "#8B5CF6",
+    "#9333EA",
+    "#0EA5E9",
+    "#0284C7",
+    "#0891B2",
+    "#475569",
+    "#334155",
+    "#D97706",
+    "#B45309",
+)
 
 
 class AnneeUniversitaire(models.Model):
@@ -61,6 +81,7 @@ class AnneeUniversitaire(models.Model):
 class UE(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nom = models.CharField(max_length=255, unique=True)
+    couleur = models.CharField(max_length=7, blank=True, default="")
     responsables = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="ues_responsable",
@@ -69,6 +90,22 @@ class UE(models.Model):
 
     class Meta:
         ordering = ["nom"]
+
+    def assign_couleur(self):
+        if self.couleur:
+            return self.couleur
+
+        used_colors = set(
+            UE.objects.exclude(pk=self.pk).exclude(couleur="").values_list("couleur", flat=True)
+        )
+        available_colors = [color for color in UE_COLOR_PALETTE if color not in used_colors]
+        self.couleur = random.choice(available_colors or list(UE_COLOR_PALETTE))
+        return self.couleur
+
+    def save(self, *args, **kwargs):
+        if not self.couleur:
+            self.assign_couleur()
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.nom

@@ -11,6 +11,10 @@
       <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour aux examens</a>
     </div>
 
+    {% if form.instance.pk and form.instance.session_id %}
+      {% include "includes/inactive_year_flag.html" with year=form.instance.session.formation.annee_universitaire %}
+    {% endif %}
+
     <div class="card form-card form-card--wide">
       <form method="post" novalidate class="form-layout">
       {% csrf_token %}
@@ -56,11 +60,23 @@
         </div>
       </div>
 
-      <div class="form-actions">
-        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
-        <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
-      </div>
-    </form>
+        <div class="form-actions">
+          <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
+          <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
+          {% if form.instance.pk %}
+            <button
+              class="btn btn--ghost"
+              type="submit"
+              formaction="{% url 'exams:exam_delete' form.instance.pk %}"
+              formmethod="post"
+              formnovalidate
+              onclick="return confirm('Êtes-vous sûr de vouloir supprimer cet examen ?');"
+            >
+              Supprimer
+            </button>
+          {% endif %}
+        </div>
+      </form>
     </div>
   </div>
 {% endblock %}

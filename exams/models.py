@@ -81,6 +81,10 @@ class Examen(models.Model):
         ordering = ["date", "heure_debut"]
 
     @property
+    def accent_color(self) -> str:
+        return self.ue.couleur or "#4F46E5"
+
+    @property
     def start_dt(self) -> datetime:
         naive = datetime.combine(self.date, self.heure_debut)
         return timezone.make_aware(naive, timezone.get_current_timezone())

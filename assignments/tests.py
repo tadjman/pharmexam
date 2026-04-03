@@ -340,7 +340,7 @@ class SurveillanceCompletionFlowTests(TestCase):
         )
         self.assertEqual(response_new.status_code, 200)
         self.assertContains(response_new, "Nouvel utilisateur détecté")
-        self.assertContains(response_new, "Choisis le rôle à attribuer")
+        self.assertContains(response_new, "Sélectionne un rôle avant la création du compte")
         response_new_confirmed = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, other_affectation.pk]),
             {

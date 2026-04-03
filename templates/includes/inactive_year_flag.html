@@ -1,0 +1,6 @@
+{% if year and not year.is_active %}
+  <div class="inactive-year-flag">
+    <span class="badge badge--warning">Attention, année inactive</span>
+    <p class="inactive-year-flag__meta">Contexte affiché : {{ year.nom }}. Cette année universitaire n'est pas active.</p>
+  </div>
+{% endif %}

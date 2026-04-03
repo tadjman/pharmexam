@@ -16,6 +16,8 @@
     {% endif %}
   </div>
 
+  {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
+
   <div class="grid" style="margin-top:16px;">
     <div class="card">
       <h2 class="card__title">Informations</h2>

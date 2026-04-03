@@ -2,146 +2,136 @@
 {% block title %}Tableau de bord — Pharmexam{% endblock %}
 
 {% block content %}
-  <div class="page-layout">
-    <div class="page-header">
-      <div class="page-header__title">
-        <div class="action-row">
-          <h1 class="page-title">Tableau de bord</h1>
-          {% if active_year %}
-            <span class="badge badge--info">{{ active_year.nom }}</span>
+  <div class="page-layout dashboard-shell">
+    {% if active_year %}
+      <section class="dashboard-hero">
+        <div class="dashboard-hero__content">
+          <span class="dashboard-hero__eyebrow">Année active · {{ active_year.nom }}</span>
+          <h1 class="dashboard-hero__title">État des examens</h1>
+          <p class="dashboard-hero__subtitle">{{ dashboard_message }}</p>
+          <div class="dashboard-hero__badges">
+            {% if has_urgent_needs %}
+              <span class="badge badge--error">{{ exams_to_complete_count }} examen{% if exams_to_complete_count > 1 %}s{% endif %} à compléter</span>
+            {% else %}
+              <span class="badge badge--success">Aucune action requise</span>
+            {% endif %}
+            <span class="badge">{{ formations_requiring_attention|length }} formation{% if formations_requiring_attention|length > 1 %}s{% endif %} concernée{% if formations_requiring_attention|length > 1 %}s{% endif %}</span>
+          </div>
+        </div>
+
+        <div class="dashboard-hero__metrics">
+          <div class="dashboard-metric dashboard-metric--urgent">
+            <span class="dashboard-metric__value">{{ missing_surveillants_total }}</span>
+            <span class="dashboard-metric__label">surveillant{% if missing_surveillants_total > 1 %}s{% endif %} manquant{% if missing_surveillants_total > 1 %}s{% endif %}</span>
+          </div>
+          <div class="dashboard-metric">
+            <span class="dashboard-metric__value">{{ exams_to_complete_count }}</span>
+            <span class="dashboard-metric__label">examen{% if exams_to_complete_count > 1 %}s{% endif %} à compléter</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="dashboard-status-grid">
+        {% for card in status_cards %}
+          <article class="status-panel {{ card.panel_class }}">
+            <div class="status-panel__top">
+              <span class="badge {{ card.badge_class }}">{{ card.label }}</span>
+            </div>
+            <div class="status-panel__value">{{ card.value }}</div>
+            <p class="status-panel__meta">examen{% if card.value > 1 %}s{% endif %}</p>
+          </article>
+        {% endfor %}
+      </section>
+
+      <div class="dashboard-columns">
+        <section class="card section-card dashboard-card">
+          <div class="section-card__title">
+            <h2 class="card__title">Formations avec examens incomplets</h2>
+            <p class="card__meta">Formations comportant au moins un examen initié ou incomplet.</p>
+          </div>
+
+          {% if formations_requiring_attention %}
+            <div class="dashboard-formation-list">
+              {% for item in formations_requiring_attention %}
+                <a class="dashboard-formation-card" href="{% url 'exams:exam_list' %}?year={{ active_year.pk }}&formation={{ item.formation.pk }}">
+                  <div class="dashboard-formation-card__header">
+                    <h3 class="dashboard-formation-card__title">{{ item.formation.nom }}</h3>
+                    <span class="dashboard-formation-card__arrow">Voir</span>
+                  </div>
+                  <p class="dashboard-formation-card__meta">{{ item.session_count }} session{% if item.session_count > 1 %}s{% endif %} concernée{% if item.session_count > 1 %}s{% endif %}</p>
+                  <div class="dashboard-formation-card__badges">
+                    <span class="badge badge--warning">{{ item.exam_count }} examen{% if item.exam_count > 1 %}s{% endif %} à compléter</span>
+                    {% if item.missing_surveillants %}
+                      <span class="badge badge--error">{{ item.missing_surveillants }} surveillant{% if item.missing_surveillants > 1 %}s{% endif %} manquant{% if item.missing_surveillants > 1 %}s{% endif %}</span>
+                    {% endif %}
+                  </div>
+                </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dashboard-empty">
+              <h3 class="dashboard-empty__title">Aucune formation concernée</h3>
+              <p class="dashboard-empty__meta">Aucun examen initié ou incomplet n'est enregistré pour l'année active.</p>
+            </div>
           {% endif %}
-        </div>
-        <p class="page-subtitle">Vue d'ensemble de l'année active et du parcours opérationnel formation → session → examen.</p>
-      </div>
-    </div>
+        </section>
 
-    <div class="grid">
-      <div class="card">
-        <h2 class="card__title">Années</h2>
-        <span class="kpi-card__value">{{ kpis.years }}</span>
-        <p class="card__meta">année{% if kpis.years > 1 %}s{% endif %}</p>
-      </div>
-      <div class="card">
-        <h2 class="card__title">Formations</h2>
-        <span class="kpi-card__value">{{ kpis.formations }}</span>
-        <p class="card__meta">formation{% if kpis.formations > 1 %}s{% endif %} sur l'année active</p>
-      </div>
-      <div class="card">
-        <h2 class="card__title">Sessions</h2>
-        <span class="kpi-card__value">{{ kpis.sessions }}</span>
-        <p class="card__meta">session{% if kpis.sessions > 1 %}s{% endif %}</p>
-      </div>
-      <div class="card">
-        <h2 class="card__title">Examens</h2>
-        <span class="kpi-card__value">{{ kpis.exams }}</span>
-        <p class="card__meta">examen{% if kpis.exams > 1 %}s{% endif %}</p>
-      </div>
-      <div class="card">
-        <h2 class="card__title">Surveillances</h2>
-        <span class="kpi-card__value">{{ kpis.surveillances }}</span>
-        <p class="card__meta">inscription{% if kpis.surveillances > 1 %}s{% endif %}</p>
-      </div>
-      <div class="card">
-        <h2 class="card__title">Taux de complétion</h2>
-        <span class="kpi-card__value">{{ kpis.completion_rate }}%</span>
-        <p class="card__meta">d'examens complets</p>
-      </div>
-    </div>
+        <section class="card section-card dashboard-card">
+          <div class="section-card__title">
+            <h2 class="card__title">Examens à compléter</h2>
+            <p class="card__meta">Examens nécessitant encore une affectation ou des inscriptions de surveillants.</p>
+          </div>
 
-    <div class="grid">
-      <div class="card section-card">
-        <div class="section-card__title">
-          <h2 class="card__title">Parcours actif</h2>
-          <p class="card__meta">Accès rapide aux formations de l'année active.</p>
-        </div>
-        {% if formations %}
-          <div class="soft-list">
-            {% for formation in formations %}
-              <div class="soft-item">
-                <div class="entity-row" style="padding:0;">
-                  <div class="entity-row__main">
-                    <div class="entity-row__title">{{ formation.nom }}</div>
-                    <div class="entity-row__meta">
-                      <span>{{ formation.session_count }} session{% if formation.session_count > 1 %}s{% endif %}</span>
-                      <span>·</span>
-                      <span>{{ formation.exam_count }} examen{% if formation.exam_count > 1 %}s{% endif %}</span>
+          {% if incomplete_exams %}
+            <div class="dashboard-alert-list">
+              {% for item in incomplete_exams %}
+                <article class="dashboard-alert-card">
+                  <div class="dashboard-alert-card__main">
+                    <div class="dashboard-alert-card__header">
+                      <h3 class="dashboard-alert-card__title">{{ item.exam.nom }}</h3>
+                      <span class="badge {{ item.status_badge_class }}">{{ item.exam.get_statut_display }}</span>
+                    </div>
+                    <p class="dashboard-alert-card__meta">
+                      {{ item.exam.session.formation.nom }} · {{ item.exam.session.nom }} · {{ item.exam.date|date:"d/m/Y" }} · {{ item.exam.heure_debut|time:"H:i" }} → {{ item.exam.heure_fin|time:"H:i" }}
+                    </p>
+                    <div class="dashboard-alert-card__badges">
+                      {% if item.needs_rooms %}
+                        <span class="badge badge--error">Aucune salle affectée</span>
+                      {% endif %}
+                      {% if item.has_missing_surveillants %}
+                        <span class="badge badge--warning">{{ item.missing_surveillants }} surveillant{% if item.missing_surveillants > 1 %}s{% endif %} manquant{% if item.missing_surveillants > 1 %}s{% endif %}</span>
+                      {% endif %}
+                      {% if item.room_count %}
+                        <span class="badge">{{ item.room_count }} salle{% if item.room_count > 1 %}s{% endif %}</span>
+                      {% endif %}
                     </div>
                   </div>
-                  <div class="entity-row__actions">
-                    <a class="btn btn--outline" href="{% url 'exams:session_list' %}?formation={{ formation.pk }}">Sessions</a>
-                    <a class="btn btn--outline" href="{% url 'exams:exam_list' %}?formation={{ formation.pk }}">Examens</a>
+                  <div class="dashboard-alert-card__actions">
+                    <a class="btn btn--soft" href="{% url 'exams:exam_complete' item.exam.pk %}">
+                      {% if is_admin_scope %}Compléter{% else %}Inscription{% endif %}
+                    </a>
                   </div>
-                </div>
-              </div>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="card__meta">Aucune formation disponible pour l'année active.</p>
-        {% endif %}
+                </article>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="dashboard-empty dashboard-empty--success">
+              <h3 class="dashboard-empty__title">Aucun examen à compléter</h3>
+              <p class="dashboard-empty__meta">Tous les examens de l'année active sont complets ou terminés.</p>
+            </div>
+          {% endif %}
+        </section>
       </div>
-
-      <div class="card section-card">
+    {% else %}
+      <section class="card section-card dashboard-card">
         <div class="section-card__title">
-          <h2 class="card__title">Statuts examens</h2>
-          <p class="card__meta">Répartition instantanée des examens de l'année active.</p>
-        </div>
-        <div class="soft-list">
-          <div class="soft-item"><p class="soft-item__meta"><span class="badge">INITIÉ</span> {{ kpis.initie }}</p></div>
-          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--warning">INCOMPLET</span> {{ kpis.incomplete }}</p></div>
-          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--success">COMPLET</span> {{ kpis.complete }}</p></div>
-          <div class="soft-item"><p class="soft-item__meta"><span class="badge badge--info">TERMINÉ</span> {{ kpis.termine }}</p></div>
-        </div>
-      </div>
-
-      <div class="card section-card">
-        <div class="section-card__title">
-          <h2 class="card__title">Salles</h2>
-          <p class="card__meta">{{ kpis.rooms }} salle{% if kpis.rooms > 1 %}s{% endif %} référencée{% if kpis.rooms > 1 %}s{% endif %}</p>
+          <h1 class="page-title">Tableau de bord</h1>
+          <p class="page-subtitle">Aucune année universitaire active n'est sélectionnée.</p>
         </div>
         <div class="action-row">
-          <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Gérer les salles</a>
+          <a class="btn btn--primary" href="{% url 'academics:annee_list' %}">Gérer les années universitaires</a>
         </div>
-      </div>
-    </div>
-
-    <div class="grid">
-      <div class="card section-card">
-        <div class="section-card__title">
-          <h2 class="card__title">Examens à compléter</h2>
-          <p class="card__meta">Priorités de complétion à traiter.</p>
-        </div>
-        {% if incomplete_exams %}
-          <div class="soft-list">
-            {% for exam in incomplete_exams %}
-              <a href="{% url 'exams:exam_complete' exam.pk %}" class="soft-item soft-item--warning">
-                <p class="soft-item__title">{{ exam.nom }}</p>
-                <p class="soft-item__meta">{{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}</p>
-              </a>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="card__meta">Aucun examen à compléter.</p>
-        {% endif %}
-      </div>
-
-      <div class="card section-card">
-        <div class="section-card__title">
-          <h2 class="card__title">Prochains examens</h2>
-          <p class="card__meta">Vue rapide des prochaines échéances.</p>
-        </div>
-        {% if upcoming_exams %}
-          <div class="soft-list">
-            {% for exam in upcoming_exams %}
-              <a href="{% url 'exams:exam_detail' exam.pk %}" class="soft-item soft-item--info">
-                <p class="soft-item__title">{{ exam.nom }}</p>
-                <p class="soft-item__meta">{{ exam.session.formation.nom }} · {{ exam.session.nom }} · {{ exam.date }} · {{ exam.heure_debut }} → {{ exam.heure_fin }}</p>
-              </a>
-            {% endfor %}
-          </div>
-        {% else %}
-          <p class="card__meta">Aucun examen à venir.</p>
-        {% endif %}
-      </div>
-    </div>
+      </section>
+    {% endif %}
   </div>
 {% endblock %}

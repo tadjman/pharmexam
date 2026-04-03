@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
-from django.db.models import ProtectedError
+from django.db.models import Count, ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -25,7 +25,7 @@ from .forms import (
     SessionForm,
     SurveillanceResponsibilityForm,
 )
-from .models import Examen, SessionExamen, StatutExamen
+from .models import Examen, SessionExamen, StatutExamen, build_session_order_expression
 
 
 DEFAULT_SURVEILLANT_PASSWORD = "Pharmexam123!"
@@ -203,10 +203,47 @@ class ExamListView(LoginRequiredMixin, ListView):
         }
         self.request.session.modified = True
 
+    def _has_explicit_scope(self):
+        return any(key in self.request.GET for key in ("year", "formation", "session"))
+
+    def _has_stored_scope(self, stored_scope):
+        return any(stored_scope.get(key) for key in ("year", "formation", "session"))
+
+    def _get_default_scope_for_year(self):
+        if not self.selected_year:
+            return "", ""
+
+        default_session = (
+            SessionExamen.objects.select_related("formation")
+            .filter(formation__annee_universitaire=self.selected_year)
+            .annotate(
+                sort_order=build_session_order_expression(),
+                incomplete_exam_count=Count(
+                    "examens",
+                    filter=Q(examens__statut__in=[StatutExamen.INITIE, StatutExamen.INCOMPLET]),
+                    distinct=True,
+                ),
+                exam_count=Count("examens", distinct=True),
+            )
+            .order_by(
+                "-incomplete_exam_count",
+                "-exam_count",
+                "-sort_order",
+                "-nom",
+                "formation__nom",
+            )
+            .first()
+        )
+        if not default_session:
+            return "", ""
+        return str(default_session.formation_id), str(default_session.pk)
+
     def get_queryset(self):
         self.active_year = get_active_year(self.request)
         self.years = AnneeUniversitaire.objects.order_by("-date_debut", "-date_fin")
         stored_scope = self.request.session.get(self.scope_session_key, {})
+        explicit_scope = self._has_explicit_scope()
+        stored_scope_present = self._has_stored_scope(stored_scope)
         self.selected_year = None
         selected_year_id = self._read_scope_value("year", stored_scope)
         if selected_year_id:
@@ -229,6 +266,8 @@ class ExamListView(LoginRequiredMixin, ListView):
         self.formations = Formation.objects.filter(annee_universitaire=self.selected_year).order_by("nom")
         self.selected_formation = self._read_scope_value("formation", stored_scope)
         self.selected_session = self._read_scope_value("session", stored_scope)
+        if not explicit_scope and not stored_scope_present:
+            self.selected_formation, self.selected_session = self._get_default_scope_for_year()
         self.formations_payload = [
             {
                 "id": str(formation.pk),
@@ -254,15 +293,21 @@ class ExamListView(LoginRequiredMixin, ListView):
         ]
 
         selected_session_obj = None
+        scope_invalid = False
         if self.selected_formation and not self.formations.filter(pk=self.selected_formation).exists():
             self.selected_formation = ""
             self.selected_session = ""
+            scope_invalid = True
         if self.selected_session:
             selected_session_obj = all_sessions.filter(pk=self.selected_session).first()
             if selected_session_obj and not self.selected_formation:
                 self.selected_formation = str(selected_session_obj.formation_id)
             elif selected_session_obj is None:
                 self.selected_session = ""
+                scope_invalid = True
+
+        if not explicit_scope and scope_invalid:
+            self.selected_formation, self.selected_session = self._get_default_scope_for_year()
 
         self.selected_formation_obj = self.formations.filter(pk=self.selected_formation).first() if self.selected_formation else None
         self.sessions = all_sessions.filter(formation_id=self.selected_formation) if self.selected_formation else SessionExamen.objects.none()

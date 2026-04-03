@@ -34,6 +34,14 @@ class ReportsViewTests(TestCase):
             last_name="hopPer",
             email="GRACE.HOPPER@EXAMPLE.COM",
         )
+        self.idle_user = User.objects.create_user(
+            username="idle_reports",
+            password="pass",
+            role=RoleUtilisateur.MEMBRE_POOL,
+            first_name="zero",
+            last_name="watcher",
+            email="ZERO.WATCHER@EXAMPLE.COM",
+        )
         self.year = AnneeUniversitaire.objects.create(
             nom="2027/2028",
             date_debut=date(2027, 9, 1),
@@ -80,10 +88,11 @@ class ReportsViewTests(TestCase):
         self.assertContains(response, "Suivi des surveillances")
         self.assertContains(response, "Ada LOVELACE")
         self.assertContains(response, "Grace HOPPER")
+        self.assertNotContains(response, "Zero WATCHER")
         self.assertContains(response, "badge--role-teacher")
-        self.assertContains(response, "badge--role-scolarite")
+        self.assertContains(response, "badge--role-pool")
         self.assertContains(response, "Enseignant")
-        self.assertContains(response, "Scolarité")
+        self.assertContains(response, "Membre du pool")
         self.assertContains(response, "ada.lovelace@example.com")
         self.assertContains(response, "grace.hopper@example.com")
         self.assertContains(response, "2h30")
@@ -91,6 +100,49 @@ class ReportsViewTests(TestCase):
         self.assertContains(response, "Salle Export")
         self.assertContains(response, "DFGSP2")
         self.assertContains(response, "Session export")
+        self.assertContains(response, 'name="q"')
+        self.assertContains(response, 'name="roles"')
+        self.assertContains(response, 'aria-label="Entrée"')
+        self.assertContains(response, 'aria-label="Reset"')
+        self.assertNotContains(response, "Examens surveillés")
+        self.assertNotContains(response, "Heures totales")
+
+    def test_activity_report_orders_users_by_total_hours_descending(self):
+        exam = Examen.objects.create(
+            session=self.session,
+            ue=self.formation.ues.first(),
+            nom="Exam Export 2",
+            date=date(2028, 1, 13),
+            heure_debut=time(14, 0),
+            heure_fin=time(17, 0),
+        )
+        room = Salle.objects.create(nom="Salle Export 2")
+        affectation = AffectationSalle.objects.create(
+            examen=exam,
+            salle=room,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(affectation_salle=affectation, surveillant=self.teacher)
+
+        response = self.client.get(reverse("reports:activity_report"))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertLess(content.index("Ada LOVELACE"), content.index("Grace HOPPER"))
+
+    def test_activity_report_filters_by_first_or_last_name_case_insensitive(self):
+        response = self.client.get(reverse("reports:activity_report"), {"q": "lovE"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ada LOVELACE")
+        self.assertNotContains(response, "Grace HOPPER")
+
+    def test_activity_report_filters_by_selected_roles(self):
+        response = self.client.get(
+            reverse("reports:activity_report"),
+            {"filters": "1", "roles": [RoleUtilisateur.ENSEIGNANT]},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ada LOVELACE")
+        self.assertNotContains(response, "Grace HOPPER")
 
     def test_year_export_returns_excel_payload(self):
         response = self.client.get(reverse("reports:export_year"))

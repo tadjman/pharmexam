@@ -6,7 +6,7 @@ from django.urls import reverse
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
 
-from .models import AnneeUniversitaire, Formation, UE, UP
+from .models import AnneeUniversitaire, Formation, UE, UP, UE_COLOR_PALETTE
 
 
 class AcademicYearPermissionTests(TestCase):
@@ -229,6 +229,10 @@ class AcademicCatalogViewsTests(TestCase):
         self.assertEqual(response_up.status_code, 200)
         self.assertTrue(UP.objects.filter(nom="UP Galénique", ue=ue).exists())
 
+    def test_ue_color_is_generated_automatically_from_non_functional_palette(self):
+        ue = UE.objects.create(nom="UE Colorée")
+        self.assertIn(ue.couleur, UE_COLOR_PALETTE)
+
     def test_ue_delete_is_blocked_when_linked_to_exam(self):
         ue = UE.objects.create(nom="UE Delete")
         formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation liée")
@@ -263,6 +267,19 @@ class AcademicCatalogViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Formation historique")
         self.assertNotContains(response, "DFGSP2")
+
+    def test_formation_list_displays_inactive_year_flag(self):
+        other_year = AnneeUniversitaire.objects.create(
+            nom="2026/2027",
+            date_debut=date(2026, 9, 1),
+            date_fin=date(2027, 7, 31),
+            is_active=False,
+        )
+        Formation.objects.create(annee_universitaire=other_year, nom="Formation inactive")
+        response = self.client.get(reverse("academics:formation_list"), {"year": str(other_year.pk)})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attention, année inactive")
+        self.assertContains(response, "Cette année universitaire n'est pas active.")
 
     def test_year_list_and_detail_display_formations(self):
         formation = Formation.objects.create(annee_universitaire=self.year, nom="DFGSP3")

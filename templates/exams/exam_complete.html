@@ -3,10 +3,13 @@
 
 {% block content %}
   <div class="exam-complete-page">
-    <section class="card">
+    <section class="card exam-overview-card">
       <div class="exam-complete-page__header">
         <div>
-          <h1 class="page-title">{{ examen.nom }}</h1>
+          <div class="exam-title-row">
+            <span class="exam-color-dot exam-color-dot--large" style="--exam-accent: {{ examen.accent_color }};"></span>
+            <h1 class="page-title">{{ examen.nom }}</h1>
+          </div>
           <p class="page-subtitle">{{ examen.session.formation.nom }} · {{ examen.session.nom }} · {{ examen.date }} · {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
         </div>
         <a class="btn btn--outline" href="{{ back_to_list_url }}">Retour à la liste</a>
@@ -64,9 +67,11 @@
       {% endif %}
     </section>
 
+    {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
+
     {% if is_admin_user %}
       <div class="exam-toolbar">
-        <a class="btn btn--primary" href="{% url 'exams:exam_room_create' examen.pk %}">Ajouter une salle</a>
+        <a class="btn btn--primary exam-toolbar__button" href="{% url 'exams:exam_room_create' examen.pk %}">+ Ajouter une salle</a>
       </div>
     {% endif %}
 
@@ -74,7 +79,7 @@
       <div class="exam-room-list">
         {% for row in room_rows %}
           {% with affectation=row.affectation %}
-            <section class="card exam-room-card">
+            <section class="card exam-room-card {% if row.is_full and row.room_responsable %}exam-room-card--complete{% else %}exam-room-card--attention{% endif %}">
               <div class="exam-room-card__header">
                 <div>
                   <div class="exam-room-card__title-row">
@@ -99,14 +104,14 @@
 
                 <div class="exam-room-card__actions">
                   {% if is_admin_user %}
-                    <a class="btn btn--primary" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Inscrire</a>
+                    <a class="btn btn--primary" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">+ Inscrire</a>
                     <a class="btn btn--accent" href="{% url 'exams:exam_room_update' examen.pk affectation.pk %}">Modifier</a>
                     <a class="btn btn--ghost" href="{% url 'exams:exam_room_delete' examen.pk affectation.pk %}">Supprimer</a>
                   {% else %}
                     {% if row.current_user_surveillance %}
-                      <span class="card__meta">Tu es déjà inscrit sur cette salle.</span>
+                      <span class="card__meta">Inscription enregistrée sur cette salle.</span>
                     {% elif current_user_surveillance %}
-                      <span class="card__meta">Tu es déjà inscrit sur une autre salle de cet examen.</span>
+                      <span class="card__meta">Inscription enregistrée sur une autre salle de cet examen.</span>
                     {% elif row.is_locked %}
                       <span class="card__meta">Inscriptions verrouillées.</span>
                     {% elif row.is_full %}

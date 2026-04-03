@@ -15,15 +15,53 @@
     </div>
 
     <div class="card">
-      <p class="page-subtitle" style="margin:0;">
-        Vue synthétique de l'année active. Les exports détaillés par formation et session restent disponibles depuis le centre d'exports.
-      </p>
-    </div>
+      <form method="get" class="selector-form report-filter-form">
+        <input type="hidden" name="filters" value="1">
+        <div class="selector-grid report-filter-form__grid">
+          <div class="selector-field report-filter-form__search">
+            <label class="selector-label" for="report-search">Rechercher un utilisateur</label>
+            <div class="report-filter-form__search-row">
+              <input
+                id="report-search"
+                type="text"
+                name="q"
+                class="input"
+                value="{{ query }}"
+                placeholder="Prénom ou nom"
+              >
+              <button class="btn btn--soft btn--icon" type="submit" aria-label="Entrée" title="Entrée">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 12h11m0 0-4-4m4 4-4 4M20 5v14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+                </svg>
+                <span class="sr-only">Entrée</span>
+              </button>
+              <a class="btn btn--accent btn--icon" href="{% url 'reports:activity_report' %}" aria-label="Reset" title="Reset">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+                </svg>
+                <span class="sr-only">Reset</span>
+              </a>
+            </div>
+          </div>
 
-    <div class="grid">
-      <div class="card"><h2 class="card__title">Utilisateurs</h2><span class="kpi-card__value">{{ totals.users }}</span></div>
-      <div class="card"><h2 class="card__title">Examens surveillés</h2><span class="kpi-card__value">{{ totals.exam_count }}</span></div>
-      <div class="card"><h2 class="card__title">Heures totales</h2><span class="kpi-card__value">{{ totals.hours_display }}</span></div>
+          <div class="selector-field">
+            <span class="selector-label">Rôles affichés</span>
+            <div class="report-filter-form__roles">
+              {% for option in role_options %}
+                <label class="report-filter-form__role">
+                  <input
+                    type="checkbox"
+                    name="roles"
+                    value="{{ option.value }}"
+                    {% if option.value in selected_roles %}checked{% endif %}
+                  >
+                  <span>{{ option.label }}</span>
+                </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </form>
     </div>
 
     <div class="card section-card">
@@ -34,7 +72,7 @@
               <div class="entity-row__main">
                 <div class="entity-row__meta">
                   <span class="entity-row__title">{{ row.user.display_full_name }}</span>
-                  <span class="badge {% if row.user.role == 'ENSEIGNANT' %}badge--role-teacher{% elif row.user.role == 'SCOLARITE' %}badge--role-scolarite{% endif %}">
+                  <span class="badge {% if row.user.role == 'ENSEIGNANT' %}badge--role-teacher{% elif row.user.role == 'SCOLARITE' %}badge--role-scolarite{% elif row.user.role == 'MEMBRE_POOL' %}badge--role-pool{% endif %}">
                     {{ row.user.get_role_display }}
                   </span>
                 </div>
@@ -42,7 +80,7 @@
                 {% if row.exam_details %}
                   <div class="soft-list" style="margin-top:12px;">
                     {% for exam in row.exam_details %}
-                      <div class="soft-item">
+                      <div class="soft-item soft-item--tinted">
                         <p class="soft-item__title">{{ exam.name }}</p>
                         <p class="soft-item__meta">{{ exam.formation }} · {{ exam.session }} · {{ exam.room }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}</p>
                       </div>

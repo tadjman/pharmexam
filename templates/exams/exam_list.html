@@ -58,6 +58,8 @@
       </form>
     </div>
 
+    {% include "includes/inactive_year_flag.html" with year=selected_year %}
+
     {% if selected_session_obj %}
       <div class="card section-card">
         <div class="section-card__header">
@@ -72,7 +74,10 @@
             {% for examen in examens %}
               <div class="entity-row">
                 <div class="entity-row__main">
-                  <div class="entity-row__title">{{ examen.nom }}</div>
+                  <div class="entity-row__title exam-list-title">
+                    <span class="exam-color-dot" style="--exam-accent: {{ examen.accent_color }};"></span>
+                    <span>{{ examen.nom }}</span>
+                  </div>
                   <div class="entity-row__meta">
                     {% if examen.statut == "COMPLET" %}
                       <span class="badge badge--success">Complet</span>
