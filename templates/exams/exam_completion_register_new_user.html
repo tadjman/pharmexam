@@ -17,8 +17,6 @@
       <form method="post" novalidate class="exam-form-layout">
         {% csrf_token %}
         <input type="hidden" name="confirm_new_user" value="1">
-        {{ confirmation_form.first_name }}
-        {{ confirmation_form.last_name }}
         {{ confirmation_form.email }}
         {{ confirmation_form.is_responsable_general }}
         {{ confirmation_form.is_responsable_salle }}
@@ -29,17 +27,24 @@
 
         <div class="soft-item">
           <p class="soft-item__title">Nouvel utilisateur détecté</p>
-          <p class="soft-item__meta">
-            {{ new_user_preview.first_name }}
-            {{ new_user_preview.last_name }}
-            ·
-            {{ new_user_preview.email }}
-          </p>
+          <p class="soft-item__meta">{{ new_user_preview.email }}</p>
         </div>
 
         <p class="page-subtitle" style="margin:0;">
-          Aucun compte existant n'est associé à cette adresse email. Sélectionne un rôle avant la création du compte et l'inscription à la salle.
+          Aucun compte existant n'est associé à cette adresse email. Renseignez le prénom, le nom et le rôle avant la création du compte et l'inscription à la salle.
         </p>
+
+        <div class="form-field">
+          <label class="exam-label">Prénom</label>
+          {{ confirmation_form.first_name }}
+          {% if confirmation_form.first_name.errors %}<div class="exam-error">{{ confirmation_form.first_name.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-field">
+          <label class="exam-label">Nom</label>
+          {{ confirmation_form.last_name }}
+          {% if confirmation_form.last_name.errors %}<div class="exam-error">{{ confirmation_form.last_name.errors }}</div>{% endif %}
+        </div>
 
         <div class="form-field">
           <label class="exam-label">Rôle du nouvel utilisateur</label>

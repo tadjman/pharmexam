@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Accès refusé — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Accès refusé</h1>
+        <p class="page-subtitle">{{ access_denied_message }}</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'dashboard' %}">Retour au tableau de bord</a>
+    </div>
+
+    <section class="card form-card">
+      <p class="confirm-copy" style="margin:0;">{{ access_denied_message }}</p>
+    </section>
+  </div>
+{% endblock %}

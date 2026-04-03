@@ -89,7 +89,7 @@ class AuthenticationTests(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "État des examens")
+        self.assertContains(response, f"Tableau de bord {year.nom}")
         self.assertContains(response, "surveillants manquants")
         self.assertContains(response, "Formations avec examens incomplets")
         self.assertContains(response, "Examens à compléter")

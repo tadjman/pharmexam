@@ -7,10 +7,11 @@ from .models import AffectationSalle, Salle
 class SalleForm(forms.ModelForm):
     class Meta:
         model = Salle
-        fields = ["nom"]
+        fields = ["nom", "capacite"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.is_creation = self.instance._state.adding
         for field in self.fields.values():
             if not getattr(field.widget, "attrs", None):
                 field.widget.attrs = {}

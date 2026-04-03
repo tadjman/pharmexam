@@ -5,7 +5,7 @@
   <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">{{ examen.nom }}</h1>
-      <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.ue.nom }}</p>
+      <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.ue.display_label }}</p>
     </div>
     {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -23,7 +23,7 @@
       <h2 class="card__title">Informations</h2>
       <p class="card__meta"><strong>Formation :</strong> {{ examen.session.formation.nom }}</p>
       <p class="card__meta"><strong>Session :</strong> {{ examen.session.nom }}</p>
-      <p class="card__meta"><strong>UE :</strong> {{ examen.ue.nom }}</p>
+      <p class="card__meta"><strong>UE :</strong> {{ examen.ue.display_label }}</p>
       <p class="card__meta"><strong>Date :</strong> {{ examen.date }}</p>
       <p class="card__meta"><strong>Créneau :</strong> {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
       <p class="card__meta"><strong>Statut :</strong> {{ examen.statut }}</p>
@@ -51,6 +51,9 @@
           {% for a in examen.affectations_salles.all %}
             <div class="card__meta">
               {{ a.salle.nom }}
+              {% if a.salle.capacite %}
+                · capacité informative : {{ a.salle.capacite }}
+              {% endif %}
               {% if a.temps_majore %} · temps majoré{% endif %}
               · {{ a.surveillances.count }} / {{ a.nb_surveillants_requis }} surveillant{% if a.nb_surveillants_requis > 1 %}s{% endif %}
             </div>

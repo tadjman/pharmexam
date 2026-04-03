@@ -5,9 +5,9 @@ from .models import AffectationSalle, Salle
 
 @admin.register(Salle)
 class SalleAdmin(admin.ModelAdmin):
-    list_display = ("nom",)
+    list_display = ("nom", "capacite")
     search_fields = ("nom",)
-    fields = ("nom",)
+    fields = ("nom", "capacite")
 
 
 @admin.register(AffectationSalle)

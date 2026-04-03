@@ -5,29 +5,13 @@
   <div class="page-layout">
     <div class="page-header">
       <div class="page-header__title">
-        <h1 class="page-title">Formations</h1>
-        <p class="page-subtitle">Choisis une année universitaire pour afficher ses formations.</p>
+        <h1 class="page-title">Formations{% if selected_year %} {{ selected_year.nom }}{% endif %}</h1>
       </div>
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
         <div class="page-header__actions">
-          <a class="btn btn--primary" href="{{ new_formation_url }}">Nouvelle formation</a>
+          <a class="btn btn--primary" href="{{ new_formation_url }}">+ Nouvelle formation</a>
         </div>
       {% endif %}
-    </div>
-
-    <div class="card">
-      <form id="formation-year-form" method="get" class="selector-form">
-        <div class="selector-grid">
-          <div class="selector-field">
-            <label class="selector-label">Sélectionnez année universitaire</label>
-            <select id="formation-year-select" name="year" class="input">
-              {% for year in years %}
-                <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
-              {% endfor %}
-            </select>
-          </div>
-        </div>
-      </form>
     </div>
 
     {% include "includes/inactive_year_flag.html" with year=selected_year %}
@@ -60,17 +44,4 @@
 
     {% include "includes/pagination.html" %}
   </div>
-
-  <script>
-    (function () {
-      const form = document.getElementById("formation-year-form");
-      const select = document.getElementById("formation-year-select");
-      if (!form || !select) {
-        return;
-      }
-      select.addEventListener("change", function () {
-        form.submit();
-      });
-    })();
-  </script>
 {% endblock %}

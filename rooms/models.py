@@ -14,6 +14,7 @@ class Salle(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     nom = models.CharField(max_length=255, unique=True)
+    capacite = models.PositiveIntegerField(null=True, blank=True)
     heure_debut_verrouillage = models.TimeField(null=True, blank=True)
     heure_fin_verrouillage = models.TimeField(null=True, blank=True)
 

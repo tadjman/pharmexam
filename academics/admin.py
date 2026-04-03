@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AnneeUniversitaire, Formation, UE, UP
+from .models import AnneeUniversitaire, Formation, UE
 
 
 @admin.register(AnneeUniversitaire)
@@ -23,15 +23,6 @@ class FormationAdmin(admin.ModelAdmin):
 
 @admin.register(UE)
 class UEAdmin(admin.ModelAdmin):
-    list_display = ("nom",)
-    search_fields = ("nom",)
-    filter_horizontal = ("responsables",)
-
-
-@admin.register(UP)
-class UPAdmin(admin.ModelAdmin):
-    list_display = ("nom", "ue", "matiere")
-    list_filter = ("ue",)
-    search_fields = ("nom", "matiere", "ue__nom")
-    autocomplete_fields = ("ue",)
+    list_display = ("code_ue", "nom")
+    search_fields = ("code_ue", "nom")
     filter_horizontal = ("responsables",)

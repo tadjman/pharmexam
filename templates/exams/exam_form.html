@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %} — Pharmexam{% endblock %}
+{% block title %}{% if form.is_creation %}Nouvel examen{% else %}Modifier l'examen{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
   <div class="form-page">
     <div class="form-page__header">
       <div>
-        <h1 class="page-title">{% if form.instance.pk %}Modifier l'examen{% else %}Nouvel examen{% endif %}</h1>
-        <p class="page-subtitle">Choisis d'abord une session, puis rattache l'examen à l'UE portée par cette session.</p>
+        <h1 class="page-title">{% if form.is_creation %}Nouvel examen{% else %}Modifier l'examen{% endif %}</h1>
+        <p class="page-subtitle">Choisis d'abord une session, puis associe l'examen à l'UE de cette session.</p>
       </div>
       <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour aux examens</a>
     </div>
 
-    {% if form.instance.pk and form.instance.session_id %}
+    {% if not form.is_creation and form.instance.session_id %}
       {% include "includes/inactive_year_flag.html" with year=form.instance.session.formation.annee_universitaire %}
     {% endif %}
 
@@ -61,9 +61,9 @@
       </div>
 
         <div class="form-actions">
-          <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
+          <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
           <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
-          {% if form.instance.pk %}
+          {% if not form.is_creation %}
             <button
               class="btn btn--ghost"
               type="submit"

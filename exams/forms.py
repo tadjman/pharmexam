@@ -16,6 +16,7 @@ class SessionForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         active_year = kwargs.pop("active_year", None)
         super().__init__(*args, **kwargs)
+        self.is_creation = self.instance._state.adding
 
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "input")
@@ -48,6 +49,7 @@ class ExamForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         active_year = kwargs.pop("active_year", None)
         super().__init__(*args, **kwargs)
+        self.is_creation = self.instance._state.adding
 
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "input")
@@ -124,13 +126,9 @@ class SelfRoomRegistrationForm(forms.Form):
 
 
 class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
-    first_name = forms.CharField(max_length=150)
-    last_name = forms.CharField(max_length=150)
     email = forms.EmailField()
 
     field_order = [
-        "first_name",
-        "last_name",
         "email",
         "is_responsable_general",
         "is_responsable_salle",
@@ -138,8 +136,8 @@ class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
 
 
 class AdminNewUserRoleChoiceForm(forms.Form):
-    first_name = forms.CharField(widget=forms.HiddenInput())
-    last_name = forms.CharField(widget=forms.HiddenInput())
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150)
     email = forms.EmailField(widget=forms.HiddenInput())
     is_responsable_general = forms.BooleanField(required=False, widget=forms.HiddenInput())
     is_responsable_salle = forms.BooleanField(required=False, widget=forms.HiddenInput())
@@ -151,6 +149,8 @@ class AdminNewUserRoleChoiceForm(forms.Form):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["first_name"].widget.attrs.setdefault("class", "input")
+        self.fields["last_name"].widget.attrs.setdefault("class", "input")
         self.fields["role"].widget.attrs.setdefault("class", "responsable-picker")
 
 

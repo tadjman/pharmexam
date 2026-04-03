@@ -5,8 +5,8 @@
   <div class="page-layout">
     <div class="page-header">
       <div class="page-header__title">
-        <h1 class="page-title">Examens</h1>
-        <p class="page-subtitle">Choisis une année universitaire, puis une formation, puis une session.</p>
+        <h1 class="page-title">Examens{% if selected_year %} {{ selected_year.nom }}{% endif %}</h1>
+        <p class="page-subtitle">Choisis une formation, puis une session.</p>
       </div>
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
         <div class="page-header__actions">
@@ -18,15 +18,6 @@
     <div class="card">
       <form id="exam-scope-form" method="get" class="selector-form">
         <div class="selector-grid">
-          <div class="selector-field">
-            <label class="selector-label">Sélectionnez une année universitaire</label>
-            <select id="year-select" name="year" class="input">
-              {% for year in years %}
-                <option value="{{ year.pk }}" {% if selected_year and selected_year.pk == year.pk %}selected{% endif %}>{{ year.nom }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
           <div class="selector-field">
             <label class="selector-label">Sélectionnez une formation</label>
             <select id="formation-select" name="formation" class="input" {% if not selected_year %}disabled{% endif %}>
@@ -51,7 +42,7 @@
         {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
           {% if selected_session_obj %}
             <div class="action-row">
-              <a class="btn btn--primary" href="{{ new_exam_url }}">Nouvel examen</a>
+              <a class="btn btn--primary" href="{{ new_exam_url }}">+ Nouvel examen</a>
             </div>
           {% endif %}
         {% endif %}
@@ -115,40 +106,9 @@
   <script>
     (function () {
       const form = document.getElementById("exam-scope-form");
-      const yearSelect = document.getElementById("year-select");
       const formationSelect = document.getElementById("formation-select");
       const sessionSelect = document.getElementById("session-select");
-      const formationsData = JSON.parse(document.getElementById("formations-data").textContent || "[]");
       const sessionsData = JSON.parse(document.getElementById("sessions-data").textContent || "[]");
-
-      function refillFormations() {
-        const selectedYear = yearSelect.value;
-        const currentFormation = formationSelect.value;
-        const availableFormations = formationsData.filter(function (formation) {
-          return formation.year_id === selectedYear;
-        });
-
-        formationSelect.innerHTML = "";
-        const defaultOption = document.createElement("option");
-        defaultOption.value = "";
-        defaultOption.textContent = "Choisir une formation";
-        formationSelect.appendChild(defaultOption);
-
-        availableFormations.forEach(function (formation) {
-          const option = document.createElement("option");
-          option.value = formation.id;
-          option.textContent = formation.label;
-          if (formation.id === currentFormation) {
-            option.selected = true;
-          }
-          formationSelect.appendChild(option);
-        });
-
-        formationSelect.disabled = !selectedYear;
-        if (!availableFormations.some(function (formation) { return formation.id === currentFormation; })) {
-          formationSelect.value = "";
-        }
-      }
 
       function refillSessions() {
         const currentFormation = formationSelect.value;
@@ -179,15 +139,9 @@
         }
       }
 
-      if (!form || !yearSelect || !formationSelect || !sessionSelect) {
+      if (!form || !formationSelect || !sessionSelect) {
         return;
       }
-
-      yearSelect.addEventListener("change", function () {
-        refillFormations();
-        refillSessions();
-        form.submit();
-      });
 
       formationSelect.addEventListener("change", function () {
         refillSessions();
@@ -198,7 +152,6 @@
         form.submit();
       });
 
-      refillFormations();
       refillSessions();
     })();
   </script>

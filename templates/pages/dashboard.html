@@ -6,8 +6,8 @@
     {% if active_year %}
       <section class="dashboard-hero">
         <div class="dashboard-hero__content">
-          <span class="dashboard-hero__eyebrow">Année active · {{ active_year.nom }}</span>
-          <h1 class="dashboard-hero__title">État des examens</h1>
+          <span class="dashboard-hero__eyebrow">Année active</span>
+          <h1 class="dashboard-hero__title">Tableau de bord {{ active_year.nom }}</h1>
           <p class="dashboard-hero__subtitle">{{ dashboard_message }}</p>
           <div class="dashboard-hero__badges">
             {% if has_urgent_needs %}

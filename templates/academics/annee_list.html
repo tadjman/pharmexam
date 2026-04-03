@@ -10,7 +10,7 @@
       </div>
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
         <div class="page-header__actions">
-          <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">Nouvelle année</a>
+          <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">+ Nouvelle année</a>
         </div>
       {% endif %}
     </div>

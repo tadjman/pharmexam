@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %} — Pharmexam{% endblock %}
+{% block title %}{% if form.is_creation %}Nouvelle session{% else %}Modifier la session{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
   <div class="form-page">
     <div class="form-page__header">
       <div>
-        <h1 class="page-title">{% if form.instance.pk %}Modifier la session{% else %}Nouvelle session{% endif %}</h1>
+        <h1 class="page-title">{% if form.is_creation %}Nouvelle session{% else %}Modifier la session{% endif %}</h1>
         <p class="page-subtitle">Rattache la session à une formation. Les sessions sont des conteneurs logiques d'examens.</p>
       </div>
       <a class="btn btn--outline" href="{% url 'exams:session_list' %}{% if form.instance.formation_id %}?formation={{ form.instance.formation_id }}{% elif form.formation.value %}?formation={{ form.formation.value }}{% endif %}">Retour aux sessions</a>
@@ -33,7 +33,7 @@
       </div>
 
       <div class="form-actions">
-        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
+        <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
         <a class="btn btn--outline" href="{% url 'exams:session_list' %}{% if form.instance.formation_id %}?formation={{ form.instance.formation_id }}{% elif form.formation.value %}?formation={{ form.formation.value }}{% endif %}">Retour</a>
       </div>
     </form>

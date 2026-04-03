@@ -85,13 +85,24 @@ class RoomDeleteViewTests(TestCase):
         self.assertContains(response, "Suppression impossible")
         self.assertTrue(AffectationSalle.objects.filter(pk=self.affectation.pk).exists())
 
-    def test_room_list_displays_available_rooms_without_capacity_wording(self):
-        Salle.objects.create(nom="Amphi 500")
+    def test_room_list_displays_available_rooms_with_informative_capacity(self):
+        Salle.objects.create(nom="Amphi 500", capacite=180)
         response = self.client.get(reverse("rooms:salle_list"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Amphi 500")
         self.assertContains(response, "B201")
-        self.assertNotContains(response, "Capacité")
+        self.assertContains(response, "Capacité informative : 180")
+
+    def test_room_create_page_displays_creation_title(self):
+        response = self.client.get(reverse("rooms:salle_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nouvelle salle")
+        self.assertNotContains(response, "Modifier la salle")
+
+    def test_room_update_page_displays_update_title(self):
+        response = self.client.get(reverse("rooms:salle_update", args=[self.salle.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Modifier la salle")
 
     def test_update_affectation_inline_from_exam_completion(self):
         other_room = Salle.objects.create(nom="B202")
@@ -110,6 +121,20 @@ class RoomDeleteViewTests(TestCase):
         self.assertEqual(self.affectation.nb_surveillants_requis, 3)
         self.assertTrue(self.affectation.temps_majore)
         self.assertContains(response, "Affectation salle mise à jour.")
+
+    def test_non_scolarite_user_sees_access_denied_on_room_list(self):
+        teacher = User.objects.create_user(
+            username="teacher_room_denied",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+        )
+        self.client.force_login(teacher)
+        session = self.client.session
+        session["active_year_id"] = str(self.year.pk)
+        session.save()
+        response = self.client.get(reverse("rooms:salle_list"))
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
 
 
 class SalleValidationMessageTests(TestCase):

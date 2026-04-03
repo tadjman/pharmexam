@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Année universitaire — Pharmexam{% endblock %}
+{% block title %}{% if form.is_creation %}Nouvelle année universitaire{% else %}Modifier l'année universitaire{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
   <div class="form-page">
     <div class="form-page__header">
       <div>
-        <h1 class="page-title">Année universitaire</h1>
+        <h1 class="page-title">{% if form.is_creation %}Nouvelle année universitaire{% else %}Modifier l'année universitaire{% endif %}</h1>
         <p class="page-subtitle">Définis la période. Le nom est généré automatiquement à partir des années de début et de fin.</p>
       </div>
       <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour aux années</a>
@@ -56,7 +56,7 @@
       </div>
 
       <div class="form-actions">
-        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
+        <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
         <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour</a>
       </div>
     </form>

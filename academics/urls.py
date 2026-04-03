@@ -21,8 +21,4 @@ urlpatterns = [
     path("ues/nouvelle/", views.UECreateView.as_view(), name="ue_create"),
     path("ues/<uuid:pk>/modifier/", views.UEUpdateView.as_view(), name="ue_update"),
     path("ues/<uuid:pk>/supprimer/", views.UEDeleteView.as_view(), name="ue_delete"),
-    path("ups/", views.UPListView.as_view(), name="up_list"),
-    path("ups/nouvelle/", views.UPCreateView.as_view(), name="up_create"),
-    path("ups/<uuid:pk>/modifier/", views.UPUpdateView.as_view(), name="up_update"),
-    path("ups/<uuid:pk>/supprimer/", views.UPDeleteView.as_view(), name="up_delete"),
 ]

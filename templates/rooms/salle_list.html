@@ -10,7 +10,7 @@
       </div>
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
         <div class="page-header__actions">
-          <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">Nouvelle salle</a>
+          <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">+ Nouvelle salle</a>
         </div>
       {% endif %}
     </div>
@@ -22,6 +22,9 @@
             <div class="entity-row">
               <div class="entity-row__main">
                 <div class="entity-row__title">{{ salle.nom }}</div>
+                {% if salle.capacite %}
+                  <div class="entity-row__meta">Capacité informative : {{ salle.capacite }}</div>
+                {% endif %}
                 <div class="entity-row__meta">
                   {% if salle.affectations_count %}
                     {{ salle.affectations_count }} affectation{% if salle.affectations_count > 1 %}s{% endif %} en cours de gestion

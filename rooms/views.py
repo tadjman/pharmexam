@@ -1,22 +1,22 @@
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import ProtectedError
 from django.db.models import Count
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView, UpdateView
 
+from config.access import ScolariteOrAdminRequiredMixin
+
 from .forms import SalleForm
 from .models import Salle
 
 
-class IsScolariteOrAdminMixin(UserPassesTestMixin):
-    def test_func(self):
-        u = self.request.user
-        return u.is_authenticated and (u.is_superuser or u.is_staff or getattr(u, "role", "") == "SCOLARITE")
+class IsScolariteOrAdminMixin(ScolariteOrAdminRequiredMixin):
+    pass
 
 
-class SalleListView(LoginRequiredMixin, ListView):
+class SalleListView(LoginRequiredMixin, IsScolariteOrAdminMixin, ListView):
     model = Salle
     template_name = "rooms/salle_list.html"
     context_object_name = "salles"

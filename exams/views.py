@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db.models import Count, ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,6 +14,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 from academics.models import AnneeUniversitaire, Formation
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
+from config.access import ScolariteOrAdminRequiredMixin, render_access_denied
 from rooms.models import AffectationSalle
 
 from .forms import (
@@ -31,12 +32,8 @@ from .models import Examen, SessionExamen, StatutExamen, build_session_order_exp
 DEFAULT_SURVEILLANT_PASSWORD = "Pharmexam123!"
 
 
-class IsScolariteOrAdminMixin(UserPassesTestMixin):
-    def test_func(self):
-        user = self.request.user
-        return user.is_authenticated and (
-            user.is_superuser or user.is_staff or getattr(user, "role", "") == "SCOLARITE"
-        )
+class IsScolariteOrAdminMixin(ScolariteOrAdminRequiredMixin):
+    pass
 
 
 def get_active_year(request):
@@ -244,12 +241,7 @@ class ExamListView(LoginRequiredMixin, ListView):
         stored_scope = self.request.session.get(self.scope_session_key, {})
         explicit_scope = self._has_explicit_scope()
         stored_scope_present = self._has_stored_scope(stored_scope)
-        self.selected_year = None
-        selected_year_id = self._read_scope_value("year", stored_scope)
-        if selected_year_id:
-            self.selected_year = self.years.filter(pk=selected_year_id).first()
-        if self.selected_year is None:
-            self.selected_year = self.active_year or self.years.first()
+        self.selected_year = self.active_year or self.years.first()
 
         if not self.selected_year:
             self.formations = Formation.objects.none()
@@ -487,13 +479,12 @@ class ExamCompletionMixin(LoginRequiredMixin):
     def deny_if_not_admin(self, request):
         if self.is_admin:
             return None
-        messages.error(request, "Action non autorisée.")
-        return redirect(self.success_url())
+        return render_access_denied(request, status=403)
 
     def _get_or_create_user_from_registration(self, form):
         email = form.cleaned_data["email"].strip().lower()
-        first_name = form.cleaned_data["first_name"].strip()
-        last_name = form.cleaned_data["last_name"].strip()
+        first_name = form.cleaned_data.get("first_name", "").strip()
+        last_name = form.cleaned_data.get("last_name", "").strip()
         role = form.cleaned_data.get("role", RoleUtilisateur.MEMBRE_POOL)
         user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
         created = False
@@ -551,8 +542,6 @@ class ExamCompletionMixin(LoginRequiredMixin):
 
     def _render_new_user_role_choice_page(self, request, affectation, confirmation_form):
         preview = {
-            "first_name": confirmation_form.data.get("first_name") or confirmation_form.initial.get("first_name", ""),
-            "last_name": confirmation_form.data.get("last_name") or confirmation_form.initial.get("last_name", ""),
             "email": confirmation_form.data.get("email") or confirmation_form.initial.get("email", ""),
         }
         return self.render_page(
@@ -807,8 +796,6 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
                 if existing_user is None:
                     confirmation_form = AdminNewUserRoleChoiceForm(
                         initial={
-                            "first_name": form.cleaned_data["first_name"].strip(),
-                            "last_name": form.cleaned_data["last_name"].strip(),
                             "email": email,
                             "is_responsable_general": form.cleaned_data.get("is_responsable_general", False),
                             "is_responsable_salle": form.cleaned_data.get("is_responsable_salle", False),
@@ -872,8 +859,7 @@ class ExamSurveillanceDeleteView(ExamCompletionMixin, View):
     def get(self, request, *args, **kwargs):
         self.surveillance = self.get_surveillance()
         if not self._is_allowed(request):
-            messages.error(request, "Action non autorisée.")
-            return redirect(self.success_url())
+            return render_access_denied(request, status=403)
         return self.render_page(
             request,
             self.template_name,
@@ -883,8 +869,7 @@ class ExamSurveillanceDeleteView(ExamCompletionMixin, View):
     def post(self, request, *args, **kwargs):
         self.surveillance = self.get_surveillance()
         if not self._is_allowed(request):
-            messages.error(request, "Action non autorisée.")
-            return redirect(self.success_url())
+            return render_access_denied(request, status=403)
         self.surveillance.delete()
         self.examen.update_statut(save=True)
         messages.success(request, "Inscription supprimée.")

@@ -277,6 +277,15 @@ class SurveillanceCompletionFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "responsable déjà défini", count=2)
 
+    def test_standard_user_sees_access_denied_on_admin_room_update_view(self):
+        self.client.force_login(self.pool)
+        session_data = self.client.session
+        session_data["active_year_id"] = str(self.year.pk)
+        session_data.save()
+        response = self.client.get(reverse("exams:exam_room_update", args=[self.exam.pk, self.affectation.pk]))
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
+
     def test_admin_can_manually_register_existing_or_new_user(self):
         existing = User.objects.create_user(
             username="existing_pool",
@@ -289,8 +298,6 @@ class SurveillanceCompletionFlowTests(TestCase):
         response_existing = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]),
             {
-                "first_name": "Existing",
-                "last_name": "Pool",
                 "email": "existing@example.com",
             },
             follow=True,
@@ -311,8 +318,6 @@ class SurveillanceCompletionFlowTests(TestCase):
         response_scolarite = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]),
             {
-                "first_name": "Sonia",
-                "last_name": "Admin",
                 "email": "scolarite@example.com",
             },
             follow=True,
@@ -331,8 +336,6 @@ class SurveillanceCompletionFlowTests(TestCase):
         response_new = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, other_affectation.pk]),
             {
-                "first_name": "New",
-                "last_name": "Watcher",
                 "email": "new-watcher@example.com",
                 "is_responsable_general": "on",
             },
@@ -340,7 +343,9 @@ class SurveillanceCompletionFlowTests(TestCase):
         )
         self.assertEqual(response_new.status_code, 200)
         self.assertContains(response_new, "Nouvel utilisateur détecté")
-        self.assertContains(response_new, "Sélectionne un rôle avant la création du compte")
+        self.assertContains(response_new, "Renseignez le prénom, le nom et le rôle")
+        self.assertContains(response_new, 'name="first_name"')
+        self.assertContains(response_new, 'name="last_name"')
         response_new_confirmed = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, other_affectation.pk]),
             {
@@ -364,6 +369,13 @@ class SurveillanceCompletionFlowTests(TestCase):
                 is_responsable_general=True,
             ).exists()
         )
+
+    def test_admin_registration_form_only_requests_email_before_new_user_step(self):
+        response = self.client.get(reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="email"')
+        self.assertNotContains(response, 'name="first_name"')
+        self.assertNotContains(response, 'name="last_name"')
 
     def test_admin_can_reassign_general_responsable(self):
         second_pool = User.objects.create_user(

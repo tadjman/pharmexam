@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}Modifier la formation{% else %}Nouvelle formation{% endif %} — Pharmexam{% endblock %}
+{% block title %}{% if form.is_creation %}Nouvelle formation{% else %}Modifier la formation{% endif %} — Pharmexam{% endblock %}
 
 {% block content %}
   <div class="form-page">
     <div class="form-page__header">
       <div>
-        <h1 class="page-title">{% if form.instance.pk %}Modifier la formation{% else %}Nouvelle formation{% endif %}</h1>
+        <h1 class="page-title">{% if form.is_creation %}Nouvelle formation{% else %}Modifier la formation{% endif %}</h1>
         <p class="page-subtitle">Renseigne la formation de l'année active et rattache les UE concernées.</p>
       </div>
       <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour aux formations</a>
@@ -13,32 +13,52 @@
 
     <div class="card form-card">
       <form method="post" novalidate class="form-layout">
-      {% csrf_token %}
+        {% csrf_token %}
 
-      {% if form.non_field_errors %}
-        <div class="flash flash--error">{{ form.non_field_errors }}</div>
-      {% endif %}
+        {% if form.non_field_errors %}
+          <div class="flash flash--error">{{ form.non_field_errors }}</div>
+        {% endif %}
 
-      <div class="form-grid">
-        <div class="form-field">
-          <label class="form-label">Nom</label>
-          {{ form.nom }}
-          {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
-        </div>
-        <div class="form-field">
-          <label class="form-label">UE rattachées</label>
-          <div class="responsable-picker">
-            {{ form.ues }}
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label">Nom</label>
+            {{ form.nom }}
+            {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
           </div>
-          {% if form.ues.errors %}<div class="form-error">{{ form.ues.errors }}</div>{% endif %}
+          {% if form.formation_year_label %}
+            <div class="form-field">
+              <label class="form-label">Année ?</label>
+              {{ form.formation_year_label }}
+              {% if form.formation_year_label.errors %}<div class="form-error">{{ form.formation_year_label.errors }}</div>{% endif %}
+            </div>
+          {% endif %}
+          <div class="form-field">
+            <label class="form-label">UE rattachées</label>
+            <div class="responsable-picker">
+              {{ form.ues }}
+            </div>
+            {% if form.ues.errors %}<div class="form-error">{{ form.ues.errors }}</div>{% endif %}
+          </div>
         </div>
-      </div>
 
-      <div class="form-actions">
-        <button class="btn {% if form.instance.pk %}btn--soft{% else %}btn--primary{% endif %}" type="submit">Enregistrer</button>
-        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour</a>
-      </div>
-    </form>
+        <div class="form-actions">
+          <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
+          <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Retour</a>
+        </div>
+      </form>
+
+      {% if not form.is_creation %}
+        <div class="form-actions" style="margin-top: 12px;">
+          {% if can_delete_formation %}
+            <form method="post" action="{% url 'academics:formation_delete' form.instance.pk %}" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette formation ?');">
+              {% csrf_token %}
+              <button class="btn btn--ghost" type="submit">Supprimer</button>
+            </form>
+          {% else %}
+            <p class="form-help" style="margin: 0;">Suppression indisponible : cette formation contient des examens dans ses sessions.</p>
+          {% endif %}
+        </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

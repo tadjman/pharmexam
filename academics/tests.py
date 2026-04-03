@@ -6,7 +6,7 @@ from django.urls import reverse
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
 
-from .models import AnneeUniversitaire, Formation, UE, UP, UE_COLOR_PALETTE
+from .models import AnneeUniversitaire, Formation, UE, UE_COLOR_PALETTE
 
 
 class AcademicYearPermissionTests(TestCase):
@@ -26,13 +26,28 @@ class AcademicYearPermissionTests(TestCase):
         self.client.force_login(self.teacher)
         response = self.client.get(reverse("academics:annee_create"))
         self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
 
     def test_scolarite_user_can_access_year_creation(self):
         self.client.force_login(self.scolarite)
         response = self.client.get(reverse("academics:annee_create"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Année universitaire")
+        self.assertContains(response, "Nouvelle année universitaire")
         self.assertNotContains(response, 'name="nom"')
+
+    def test_non_scolarite_user_cannot_access_year_list(self):
+        year = AnneeUniversitaire.objects.create(
+            date_debut=date(2026, 9, 1),
+            date_fin=date(2027, 7, 31),
+            is_active=True,
+        )
+        self.client.force_login(self.teacher)
+        session = self.client.session
+        session["active_year_id"] = str(year.pk)
+        session.save()
+        response = self.client.get(reverse("academics:annee_list"))
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
 
 
 class ActiveYearMiddlewareTests(TestCase):
@@ -110,12 +125,12 @@ class ActiveYearSelectionTests(TestCase):
             reverse("academics:annee_set_active", args=[self.year_two.pk]),
             follow=True,
         )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
         self.year_one.refresh_from_db()
         self.year_two.refresh_from_db()
         self.assertTrue(self.year_one.is_active)
         self.assertFalse(self.year_two.is_active)
-        self.assertContains(response, "Action non autorisée")
+        self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
 
     def test_saving_active_year_deactivates_previous_one(self):
         self.year_two.is_active = True
@@ -175,11 +190,15 @@ class AcademicCatalogViewsTests(TestCase):
         ue = UE.objects.create(nom="UE Pharmacie")
         response = self.client.post(
             reverse("academics:formation_create"),
-            {"nom": "DFGSP2", "ues": [str(ue.pk)]},
+            {
+                "nom": "DEUST",
+                "formation_year_label": "2ème année",
+                "ues": [str(ue.pk)],
+            },
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        formation = Formation.objects.get(nom="DFGSP2")
+        formation = Formation.objects.get(nom="DEUST (2ème année)")
         self.assertEqual(formation.annee_universitaire, self.year)
         self.assertTrue(formation.ues.filter(pk=ue.pk).exists())
         self.assertSetEqual(
@@ -187,6 +206,26 @@ class AcademicCatalogViewsTests(TestCase):
             {"Semestre 1", "Semestre 2", "Rattrapages"},
         )
         self.assertContains(response, "Formation créée.")
+
+    def test_unique_year_label_does_not_append_suffix_to_formation_name(self):
+        response = self.client.post(
+            reverse("academics:formation_create"),
+            {
+                "nom": "Formation Continue",
+                "formation_year_label": "Année unique",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(Formation.objects.filter(nom="Formation Continue").exists())
+        self.assertFalse(Formation.objects.filter(nom="Formation Continue (Année unique)").exists())
+
+    def test_formation_create_page_displays_year_label_selector(self):
+        response = self.client.get(reverse("academics:formation_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Année ?")
+        self.assertContains(response, "Année unique")
+        self.assertContains(response, "2ème année")
 
     def test_scolarite_user_can_create_year_without_manual_name(self):
         response = self.client.post(
@@ -208,30 +247,38 @@ class AcademicCatalogViewsTests(TestCase):
         )
         self.assertContains(response, "Année universitaire créée.")
 
-    def test_scolarite_user_can_create_ue_and_up(self):
+    def test_year_create_page_displays_creation_title(self):
+        response = self.client.get(reverse("academics:annee_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nouvelle année universitaire")
+        self.assertNotContains(response, "Modifier l'année universitaire")
+
+    def test_scolarite_user_can_create_ue(self):
         response_ue = self.client.post(
             reverse("academics:ue_create"),
-            {"nom": "UE Biochimie", "responsables": [str(self.teacher.pk)]},
+            {"code_ue": "ue1s25", "nom": "UE Biochimie", "responsables": [str(self.teacher.pk)]},
             follow=True,
         )
         self.assertEqual(response_ue.status_code, 200)
-        ue = UE.objects.get(nom="UE Biochimie")
-        response_up = self.client.post(
-            reverse("academics:up_create"),
-            {
-                "ue": str(ue.pk),
-                "nom": "UP Galénique",
-                "matiere": "GAL",
-                "responsables": [str(self.teacher.pk)],
-            },
-            follow=True,
-        )
-        self.assertEqual(response_up.status_code, 200)
-        self.assertTrue(UP.objects.filter(nom="UP Galénique", ue=ue).exists())
+        self.assertTrue(UE.objects.filter(nom="UE Biochimie", code_ue="UE1S25").exists())
+
+    def test_ue_create_page_displays_creation_title(self):
+        response = self.client.get(reverse("academics:ue_create"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nouvelle UE")
+        self.assertNotContains(response, "Modifier l&#x27;UE")
 
     def test_ue_color_is_generated_automatically_from_non_functional_palette(self):
         ue = UE.objects.create(nom="UE Colorée")
+        self.assertTrue(ue.code_ue.startswith("UE"))
         self.assertIn(ue.couleur, UE_COLOR_PALETTE)
+
+    def test_ue_colors_follow_fixed_palette_without_random_generation(self):
+        self.assertEqual(len(UE_COLOR_PALETTE), 16)
+        created = [UE.objects.create(nom=f"UE Palette {index}") for index in range(17)]
+        first_sixteen_colors = [ue.couleur for ue in created[:16]]
+        self.assertEqual(first_sixteen_colors, list(UE_COLOR_PALETTE))
+        self.assertEqual(created[16].couleur, UE_COLOR_PALETTE[0])
 
     def test_ue_delete_is_blocked_when_linked_to_exam(self):
         ue = UE.objects.create(nom="UE Delete")
@@ -254,7 +301,7 @@ class AcademicCatalogViewsTests(TestCase):
         self.assertContains(response, "Suppression impossible")
         self.assertTrue(UE.objects.filter(pk=ue.pk).exists())
 
-    def test_formation_list_displays_selected_year_formations(self):
+    def test_formation_list_uses_active_year_formations(self):
         Formation.objects.create(annee_universitaire=self.year, nom="DFGSP2")
         other_year = AnneeUniversitaire.objects.create(
             nom="2026/2027",
@@ -263,12 +310,12 @@ class AcademicCatalogViewsTests(TestCase):
             is_active=False,
         )
         Formation.objects.create(annee_universitaire=other_year, nom="Formation historique")
-        response = self.client.get(reverse("academics:formation_list"), {"year": str(other_year.pk)})
+        response = self.client.get(reverse("academics:formation_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Formation historique")
-        self.assertNotContains(response, "DFGSP2")
+        self.assertContains(response, "DFGSP2")
+        self.assertNotContains(response, "Formation historique")
 
-    def test_formation_list_displays_inactive_year_flag(self):
+    def test_formation_list_displays_active_year_context(self):
         other_year = AnneeUniversitaire.objects.create(
             nom="2026/2027",
             date_debut=date(2026, 9, 1),
@@ -276,10 +323,11 @@ class AcademicCatalogViewsTests(TestCase):
             is_active=False,
         )
         Formation.objects.create(annee_universitaire=other_year, nom="Formation inactive")
-        response = self.client.get(reverse("academics:formation_list"), {"year": str(other_year.pk)})
+        response = self.client.get(reverse("academics:formation_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Attention, année inactive")
-        self.assertContains(response, "Cette année universitaire n'est pas active.")
+        self.assertContains(response, "Année active")
+        self.assertContains(response, self.year.nom)
+        self.assertNotContains(response, "Attention, année inactive")
 
     def test_year_list_and_detail_display_formations(self):
         formation = Formation.objects.create(annee_universitaire=self.year, nom="DFGSP3")
@@ -301,3 +349,64 @@ class AcademicCatalogViewsTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "UE Synthèse")
         self.assertContains(response, "Ali TADJINE")
+
+    def test_formation_update_displays_delete_button_when_sessions_have_no_exams(self):
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation supprimable")
+        response = self.client.get(reverse("academics:formation_update", args=[formation.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Supprimer")
+        self.assertContains(response, "Êtes-vous sûr de vouloir supprimer cette formation ?")
+
+    def test_formation_update_hides_delete_button_when_sessions_have_exams(self):
+        ue = UE.objects.create(nom="UE Formation bloquée")
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation bloquée")
+        formation.ues.add(ue)
+        session = formation.sessions.first()
+        Examen.objects.create(
+            session=session,
+            ue=ue,
+            nom="Examen formation bloquée",
+            date=date(2028, 2, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        response = self.client.get(reverse("academics:formation_update", args=[formation.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Êtes-vous sûr de vouloir supprimer cette formation ?")
+        self.assertContains(response, "Suppression indisponible")
+
+    def test_formation_delete_removes_empty_sessions_and_formation(self):
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation à supprimer")
+        session_ids = list(formation.sessions.values_list("pk", flat=True))
+        response = self.client.post(reverse("academics:formation_delete", args=[formation.pk]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Formation supprimée.")
+        self.assertFalse(Formation.objects.filter(pk=formation.pk).exists())
+        self.assertFalse(SessionExamen.objects.filter(pk__in=session_ids).exists())
+
+    def test_formation_delete_is_blocked_when_sessions_have_exams(self):
+        ue = UE.objects.create(nom="UE Delete formation blocked")
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation non supprimable")
+        formation.ues.add(ue)
+        session = formation.sessions.first()
+        Examen.objects.create(
+            session=session,
+            ue=ue,
+            nom="Examen bloquant suppression formation",
+            date=date(2028, 3, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        response = self.client.post(reverse("academics:formation_delete", args=[formation.pk]), follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Suppression impossible : cette formation contient encore des examens dans ses sessions.")
+        self.assertTrue(Formation.objects.filter(pk=formation.pk).exists())
+
+    def test_nav_hides_year_link_for_non_scolarite_user(self):
+        self.client.force_login(self.teacher)
+        session = self.client.session
+        session["active_year_id"] = str(self.year.pk)
+        session.save()
+        response = self.client.get(reverse("academics:formation_list"))
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Années universitaires")

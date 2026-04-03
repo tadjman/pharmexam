@@ -242,7 +242,7 @@ def get_exam_export_rows(active_year, session=None):
                 "start": str(exam.heure_debut),
                 "end": str(exam.heure_fin),
                 "statut": exam.statut,
-                "ue": exam.ue.nom,
+                "ue": exam.ue.display_label,
                 "required_watchers": sum(affectation.nb_surveillants_requis for affectation in affectations),
                 "registered_watchers": len(surveillances),
                 "rooms_count": len(affectations),
@@ -256,6 +256,7 @@ def get_exam_export_rows(active_year, session=None):
                     "session": exam.session.nom,
                     "exam": exam.nom,
                     "room": affectation.salle.nom,
+                    "capacity": affectation.salle.capacite or "",
                     "temps_majore": "Oui" if affectation.temps_majore else "Non",
                     "required_watchers": affectation.nb_surveillants_requis,
                     "registered_watchers": affectation.surveillances.count(),
@@ -325,6 +326,7 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             "<Cell><Data ss:Type=\"String\">Session</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Examen</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Salle</Data></Cell>"
+            "<Cell><Data ss:Type=\"Number\">Capacité</Data></Cell>"
             "<Cell><Data ss:Type=\"String\">Temps majoré</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Surveillants requis</Data></Cell>"
             "<Cell><Data ss:Type=\"Number\">Surveillants inscrits</Data></Cell>"
@@ -340,6 +342,7 @@ def build_exam_export_xml(title, exam_rows, room_rows, surveillance_rows):
             f"<Cell><Data ss:Type=\"String\">{escape(row['session'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['exam'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['room'])}</Data></Cell>"
+            f"<Cell><Data ss:Type=\"String\">{escape(str(row['capacity']))}</Data></Cell>"
             f"<Cell><Data ss:Type=\"String\">{escape(row['temps_majore'])}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['required_watchers']}</Data></Cell>"
             f"<Cell><Data ss:Type=\"Number\">{row['registered_watchers']}</Data></Cell>"

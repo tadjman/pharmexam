@@ -65,6 +65,7 @@ class ReportsViewTests(TestCase):
         )
         room = Salle.objects.create(
             nom="Salle Export",
+            capacite=120,
             heure_debut_verrouillage=time(8, 30),
             heure_fin_verrouillage=time(12, 0),
         )
@@ -183,6 +184,7 @@ class ReportsViewTests(TestCase):
         self.assertIn("Surveillances", content)
         self.assertIn("Exam Export", content)
         self.assertIn("Salle Export", content)
+        self.assertIn("120", content)
         self.assertIn("Ada LOVELACE", content)
         self.assertIn("Temps majoré", content)
 

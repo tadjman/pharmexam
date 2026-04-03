@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
 from django.db.models import Count
 from django.db.models import ProtectedError
@@ -8,21 +8,18 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
 
+from config.access import ScolariteOrAdminRequiredMixin, is_scolarite_or_admin, render_access_denied
+
 from .forms import (
     AnneeUniversitaireForm,
     FormationForm,
     UEForm,
-    UPForm,
 )
-from .models import AnneeUniversitaire, Formation, UE, UP
+from .models import AnneeUniversitaire, Formation, UE
 
 
-class IsScolariteOrAdminMixin(UserPassesTestMixin):
-    def test_func(self):
-        user = self.request.user
-        return user.is_authenticated and (
-            user.is_superuser or user.is_staff or getattr(user, "role", "") == "SCOLARITE"
-        )
+class IsScolariteOrAdminMixin(ScolariteOrAdminRequiredMixin):
+    pass
 
 
 def get_active_year(request):
@@ -32,7 +29,7 @@ def get_active_year(request):
     return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
-class AnneeListView(LoginRequiredMixin, ListView):
+class AnneeListView(LoginRequiredMixin, IsScolariteOrAdminMixin, ListView):
     model = AnneeUniversitaire
     template_name = "academics/annee_list.html"
     context_object_name = "annees"
@@ -52,7 +49,7 @@ class AnneeListView(LoginRequiredMixin, ListView):
         return ctx
 
 
-class AnneeDetailView(LoginRequiredMixin, DetailView):
+class AnneeDetailView(LoginRequiredMixin, IsScolariteOrAdminMixin, DetailView):
     model = AnneeUniversitaire
     template_name = "academics/annee_detail.html"
     context_object_name = "annee"
@@ -122,12 +119,7 @@ class FormationListView(LoginRequiredMixin, ListView):
         if not self.active_year and not AnneeUniversitaire.objects.exists():
             messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
             return redirect("academics:annee_list")
-        year_id = request.GET.get("year")
-        self.selected_year = (
-            AnneeUniversitaire.objects.filter(pk=year_id).first()
-            if year_id
-            else self.active_year
-        )
+        self.selected_year = self.active_year
         if self.selected_year is None:
             self.selected_year = AnneeUniversitaire.objects.order_by("-date_debut").first()
         return super().dispatch(request, *args, **kwargs)
@@ -197,6 +189,11 @@ class FormationUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateVie
         messages.success(self.request, "Formation mise à jour.")
         return response
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["can_delete_formation"] = not self.object.sessions.filter(examens__isnull=False).exists()
+        return ctx
+
     def get_success_url(self):
         return reverse("academics:formation_detail", args=[self.object.pk])
 
@@ -211,16 +208,24 @@ class FormationDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteVie
 
     def form_valid(self, form):
         self.object = self.get_object()
+        year_id = self.object.annee_universitaire_id
+        if self.object.sessions.filter(examens__isnull=False).exists():
+            messages.error(
+                self.request,
+                "Suppression impossible : cette formation contient encore des examens dans ses sessions.",
+            )
+            return redirect(reverse("academics:formation_update", args=[self.object.pk]))
         try:
+            self.object.sessions.all().delete()
             self.object.delete()
         except ProtectedError:
             messages.error(
                 self.request,
                 "Suppression impossible : cette formation contient encore des sessions ou des examens liés.",
             )
-            return redirect(f"{self.success_url}?year={self.object.annee_universitaire_id}")
+            return redirect(reverse("academics:formation_update", args=[self.object.pk]))
         messages.success(self.request, "Formation supprimée.")
-        return redirect(f"{self.success_url}?year={self.object.annee_universitaire_id}")
+        return redirect(f"{self.success_url}?year={year_id}")
 
 
 class FormationDetailView(LoginRequiredMixin, DetailView):
@@ -243,9 +248,7 @@ class TeachingOverviewView(LoginRequiredMixin, TemplateView):
         ctx = super().get_context_data(**kwargs)
         ctx["active_year"] = get_active_year(self.request)
         ctx["ue_count"] = UE.objects.count()
-        ctx["up_count"] = UP.objects.count()
         ctx["ues"] = UE.objects.prefetch_related("responsables").order_by("nom")[:8]
-        ctx["ups"] = UP.objects.select_related("ue").prefetch_related("responsables").order_by("ue__nom", "nom")[:8]
         return ctx
 
 
@@ -303,71 +306,10 @@ class UEDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
         except ProtectedError:
             messages.error(
                 self.request,
-                "Suppression impossible : cette UE contient encore des UP, des formations ou des examens liés.",
+                "Suppression impossible : cette UE contient encore des formations ou des examens liés.",
             )
             return redirect(self.success_url)
         messages.success(self.request, "UE supprimée.")
-        return redirect(self.success_url)
-
-
-class UPListView(LoginRequiredMixin, ListView):
-    model = UP
-    template_name = "academics/up_list.html"
-    context_object_name = "ups"
-    paginate_by = 30
-
-    def get_queryset(self):
-        return UP.objects.select_related("ue").prefetch_related("responsables").order_by("ue__nom", "nom").distinct()
-
-    def get_context_data(self, **kwargs):
-        ctx = super().get_context_data(**kwargs)
-        ctx["active_year"] = get_active_year(self.request)
-        params = self.request.GET.copy()
-        params.pop("page", None)
-        ctx["querystring"] = params.urlencode()
-        return ctx
-
-
-class UPCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
-    model = UP
-    form_class = UPForm
-    template_name = "academics/up_form.html"
-    success_url = reverse_lazy("academics:up_list")
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(self.request, "UP créée.")
-        return response
-
-
-class UPUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
-    model = UP
-    form_class = UPForm
-    template_name = "academics/up_form.html"
-    success_url = reverse_lazy("academics:up_list")
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(self.request, "UP mise à jour.")
-        return response
-
-
-class UPDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
-    model = UP
-    template_name = "academics/up_confirm_delete.html"
-    success_url = reverse_lazy("academics:up_list")
-
-    def form_valid(self, form):
-        self.object = self.get_object()
-        try:
-            self.object.delete()
-        except ProtectedError:
-            messages.error(
-                self.request,
-                "Suppression impossible : cette UP est encore utilisée par un ou plusieurs examens.",
-            )
-            return redirect(self.success_url)
-        messages.success(self.request, "UP supprimée.")
         return redirect(self.success_url)
 
 
@@ -377,10 +319,8 @@ def set_active_year(request, pk):
     if request.method != "POST":
         return redirect("academics:annee_list")
 
-    user = request.user
-    if not (user.is_superuser or user.is_staff or getattr(user, "role", "") == "SCOLARITE"):
-        messages.error(request, "Action non autorisée : seule la scolarité peut changer l'année active.")
-        return redirect("academics:annee_list")
+    if not is_scolarite_or_admin(request.user):
+        return render_access_denied(request, status=403)
 
     year = get_object_or_404(AnneeUniversitaire, pk=pk)
     AnneeUniversitaire.objects.filter(is_active=True).exclude(pk=year.pk).update(is_active=False)

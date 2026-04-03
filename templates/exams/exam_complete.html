@@ -97,6 +97,9 @@
                     {% endif %}
                   </div>
                   <p class="card__meta">{{ affectation.surveillances.count }} / {{ affectation.nb_surveillants_requis }} surveillant{% if affectation.nb_surveillants_requis > 1 %}s{% endif %} inscrits</p>
+                  {% if affectation.salle.capacite %}
+                    <p class="card__meta">Capacité informative : {{ affectation.salle.capacite }}</p>
+                  {% endif %}
                   <p class="card__meta">
                     Verrouillage automatique : {{ affectation.lock_start_dt|date:"d/m/Y H:i" }} → {{ affectation.lock_end_dt|date:"d/m/Y H:i" }}
                   </p>

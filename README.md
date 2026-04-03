@@ -61,7 +61,7 @@ Les administrateurs parmis ces utilisateurs disposent de permissions étendues.
 Un examen doit obligatoirement comporter :
 
 - Nom
-- UP concernée
+- UE
 - UE de rattachement
 - Responsable (appartenant aux responsables de l’UE)
 - Nombre total d’élèves

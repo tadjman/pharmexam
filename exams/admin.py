@@ -28,7 +28,7 @@ class ExamenAdmin(admin.ModelAdmin):
         "statut",
     )
     list_filter = ("statut", "session__formation__annee_universitaire", "session__formation", "session")
-    search_fields = ("nom", "ue__nom", "session__nom")
+    search_fields = ("nom", "ue__code_ue", "ue__nom", "session__nom")
     autocomplete_fields = ("session", "ue")
 
     @admin.display(ordering="session__formation", description="Formation")

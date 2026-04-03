@@ -29,16 +29,6 @@
 
           {% if is_admin_user %}
             <div>
-              <label class="exam-label">Prénom</label>
-              {{ form.first_name }}
-              {% if form.first_name.errors %}<div class="exam-error">{{ form.first_name.errors }}</div>{% endif %}
-            </div>
-            <div>
-              <label class="exam-label">Nom</label>
-              {{ form.last_name }}
-              {% if form.last_name.errors %}<div class="exam-error">{{ form.last_name.errors }}</div>{% endif %}
-            </div>
-            <div>
               <label class="exam-label">Adresse email</label>
               {{ form.email }}
               {% if form.email.errors %}<div class="exam-error">{{ form.email.errors }}</div>{% endif %}
@@ -68,7 +58,7 @@
           {% if form.is_responsable_salle.errors %}<div class="exam-error">{{ form.is_responsable_salle.errors }}</div>{% endif %}
 
           <div class="exam-form-actions">
-            <button class="btn btn--primary" type="submit">{% if is_admin_user %}Inscrire{% else %}S'inscrire{% endif %}</button>
+            <button class="btn btn--primary" type="submit">{% if is_admin_user %}+ Inscrire{% else %}S'inscrire{% endif %}</button>
             <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Annuler</a>
           </div>
         </form>

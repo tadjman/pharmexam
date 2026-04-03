@@ -5,12 +5,12 @@
   <div class="page-layout">
     <div class="page-header">
       <div class="page-header__title">
-        <h1 class="page-title">Suivi des surveillances</h1>
-        <p class="page-subtitle">{% if active_year %}Année active : <strong>{{ active_year.nom }}</strong>{% endif %}</p>
+        <h1 class="page-title">Suivi{% if active_year %} {{ active_year.nom }}{% endif %}</h1>
+        <p class="page-subtitle">Suivi des surveillances de l'année active.</p>
       </div>
       <div class="page-header__actions">
         <a class="btn btn--outline" href="{% url 'reports:export_center' %}">Centre d'exports</a>
-        <a class="btn btn--outline" href="{% url 'reports:export_year' %}">Exporter l'année</a>
+        <a class="btn btn--soft" href="{% url 'reports:export_year' %}">Exporter l'année</a>
       </div>
     </div>
 
@@ -64,11 +64,11 @@
       </form>
     </div>
 
-    <div class="card section-card">
+    <div class="card section-card report-section-card">
       {% if rows %}
-        <div class="entity-list">
+        <div class="entity-list report-entity-list">
           {% for row in rows %}
-            <div class="entity-row" style="align-items:flex-start;">
+            <div class="entity-row report-entity-row">
               <div class="entity-row__main">
                 <div class="entity-row__meta">
                   <span class="entity-row__title">{{ row.user.display_full_name }}</span>
@@ -78,9 +78,9 @@
                 </div>
                 <div class="card__meta">{{ row.user.display_contact }}</div>
                 {% if row.exam_details %}
-                  <div class="soft-list" style="margin-top:12px;">
+                  <div class="soft-list report-soft-list">
                     {% for exam in row.exam_details %}
-                      <div class="soft-item soft-item--tinted">
+                      <div class="soft-item soft-item--tinted report-soft-item">
                         <p class="soft-item__title">{{ exam.name }}</p>
                         <p class="soft-item__meta">{{ exam.formation }} · {{ exam.session }} · {{ exam.room }} · {{ exam.date }} · {{ exam.time_range }} · {{ exam.duration }}</p>
                       </div>

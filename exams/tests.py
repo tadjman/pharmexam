@@ -166,6 +166,30 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(response, "exam-color-dot")
         self.assertContains(response, self.examen.accent_color)
 
+    def test_exam_create_page_displays_creation_title_and_no_delete_button(self):
+        response = self.client.get(reverse("exams:exam_create") + f"?session={self.session.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nouvel examen")
+        self.assertNotContains(response, "Modifier l&#x27;examen")
+        self.assertNotContains(response, "Supprimer")
+
+    def test_exam_update_page_displays_update_title_and_delete_button(self):
+        response = self.client.get(reverse("exams:exam_update", args=[self.examen.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Modifier l'examen")
+        self.assertContains(response, "Supprimer")
+
+    def test_session_create_page_displays_creation_title(self):
+        response = self.client.get(reverse("exams:session_create") + f"?formation={self.formation.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Nouvelle session")
+        self.assertNotContains(response, "Modifier la session")
+
+    def test_session_update_page_displays_update_title(self):
+        response = self.client.get(reverse("exams:session_update", args=[self.session.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Modifier la session")
+
     def test_completion_page_returns_to_exam_list_and_not_exam_detail(self):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
@@ -351,13 +375,11 @@ class SessionAndExamScopeTests(TestCase):
         response = self.client.get(
             reverse("exams:exam_list"),
             {
-                "year": str(self.year.pk),
                 "formation": str(self.formation_a.pk),
                 "session": str(self.session_a.pk),
             },
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sélectionnez une année universitaire")
         self.assertContains(response, "Sélectionnez une formation")
         self.assertContains(response, "Sélectionnez une session")
         self.assertContains(response, "Gérer les salles")
@@ -368,43 +390,10 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, self.ue.couleur)
         self.assertNotContains(response, "Examen Pharmacologie")
 
-    def test_exam_list_displays_inactive_year_flag(self):
-        other_year = AnneeUniversitaire.objects.create(
-            nom="2031/2032",
-            date_debut=date(2031, 9, 1),
-            date_fin=date(2032, 7, 31),
-            is_active=False,
-        )
-        other_formation = Formation.objects.create(annee_universitaire=other_year, nom="Formation inactive")
-        other_formation.ues.add(self.ue)
-        other_session = SessionExamen.objects.create(
-            formation=other_formation,
-            nom="Session inactive",
-        )
-        Examen.objects.create(
-            session=other_session,
-            ue=self.ue,
-            nom="Examen inactif",
-            date=date(2032, 1, 10),
-            heure_debut=time(9, 0),
-            heure_fin=time(11, 0),
-        )
-        response = self.client.get(
-            reverse("exams:exam_list"),
-            {
-                "year": str(other_year.pk),
-                "formation": str(other_formation.pk),
-                "session": str(other_session.pk),
-            },
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Attention, année inactive")
-
     def test_exam_list_keeps_last_selected_scope_when_reopened_without_params(self):
         self.client.get(
             reverse("exams:exam_list"),
             {
-                "year": str(self.year.pk),
                 "formation": str(self.formation_a.pk),
                 "session": str(self.session_a.pk),
             },
@@ -523,7 +512,6 @@ class SessionAndExamScopeTests(TestCase):
         response = self.client.get(
             reverse("exams:exam_list"),
             {
-                "year": str(self.year.pk),
                 "formation": str(self.formation_a.pk),
                 "session": str(self.session_a.pk),
             },
