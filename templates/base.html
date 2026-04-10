@@ -5,11 +5,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Pharmexam{% endblock %}</title>
+  {% get_media_prefix as MEDIA_URL %}
+  <link rel="icon" type="image/png" href="{{ MEDIA_URL }}favicon.png">
 
-  <!-- Poppins -->
+  <!-- Poppins + IBM Plex Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="{% static 'css/pharmatools.css' %}">
   {% block head %}{% endblock %}
@@ -27,6 +29,9 @@
             {% else %}
               Année active : non définie
             {% endif %}
+          </div>
+          <div class="brand__user {% if user.role == 'ENSEIGNANT' %}brand__user--teacher{% elif user.role == 'SCOLARITE' %}brand__user--scolarite{% elif user.role == 'MEMBRE_POOL' %}brand__user--pool{% endif %}">
+            Connecté en tant que {{ user.display_full_name }} · {{ user.get_role_display }}{% if user.role == "ENSEIGNANT" and user.up %} · {{ user.up.nom }}{% endif %}
           </div>
         {% endif %}
       </div>

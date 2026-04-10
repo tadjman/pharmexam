@@ -6,27 +6,23 @@ from django.db.models import Count
 from django.db.models import ProtectedError
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
-from django.views.generic import CreateView, DeleteView, DetailView, ListView, TemplateView, UpdateView
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from config.access import ScolariteOrAdminRequiredMixin, is_scolarite_or_admin, render_access_denied
 
 from .forms import (
     AnneeUniversitaireForm,
     FormationForm,
+    FormationUEFormSet,
+    UPForm,
     UEForm,
 )
-from .models import AnneeUniversitaire, Formation, UE
+from .models import DEFAULT_UP_NAME, AnneeUniversitaire, Formation, UE, UP
+from .utils import get_active_year
 
 
 class IsScolariteOrAdminMixin(ScolariteOrAdminRequiredMixin):
     pass
-
-
-def get_active_year(request):
-    year_id = request.session.get("active_year_id")
-    if year_id:
-        return AnneeUniversitaire.objects.filter(pk=year_id).first()
-    return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
 class AnneeListView(LoginRequiredMixin, IsScolariteOrAdminMixin, ListView):
@@ -154,6 +150,7 @@ class FormationCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateVie
     template_name = "academics/formation_form.html"
 
     def dispatch(self, request, *args, **kwargs):
+        self.object = None
         self.active_year = get_active_year(request)
         year_id = request.GET.get("year")
         self.target_year = (
@@ -166,36 +163,38 @@ class FormationCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateVie
             return redirect("academics:annee_list")
         return super().dispatch(request, *args, **kwargs)
 
-    def form_valid(self, form):
-        form.instance.annee_universitaire = self.target_year
-        response = super().form_valid(form)
+    def get_ue_formset(self):
+        instance = self.object or Formation(annee_universitaire=self.target_year)
+        if self.request.method == "POST":
+            return FormationUEFormSet(self.request.POST, instance=instance, prefix="ues")
+        return FormationUEFormSet(instance=instance, prefix="ues")
+
+    def post(self, request, *args, **kwargs):
+        form = self.get_form()
+        ue_formset = self.get_ue_formset()
+        if form.is_valid() and ue_formset.is_valid():
+            return self.forms_valid(form, ue_formset)
+        return self.forms_invalid(form, ue_formset)
+
+    def forms_valid(self, form, ue_formset):
+        with transaction.atomic():
+            form.instance.annee_universitaire = self.target_year
+            self.object = form.save()
+            ue_formset.instance = self.object
+            ue_formset.save()
         messages.success(self.request, "Formation créée.")
-        return response
+        return redirect(self.get_success_url())
 
-    def get_success_url(self):
-        return f"{reverse('academics:formation_list')}?year={self.object.annee_universitaire_id}"
-
-
-class FormationUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
-    model = Formation
-    form_class = FormationForm
-    template_name = "academics/formation_form.html"
-
-    def get_queryset(self):
-        return Formation.objects.all()
-
-    def form_valid(self, form):
-        response = super().form_valid(form)
-        messages.success(self.request, "Formation mise à jour.")
-        return response
+    def forms_invalid(self, form, ue_formset):
+        return self.render_to_response(self.get_context_data(form=form, ue_formset=ue_formset))
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["can_delete_formation"] = not self.object.sessions.filter(examens__isnull=False).exists()
+        ctx.setdefault("ue_formset", self.get_ue_formset())
         return ctx
 
     def get_success_url(self):
-        return reverse("academics:formation_detail", args=[self.object.pk])
+        return f"{reverse('academics:formation_list')}?year={self.object.annee_universitaire_id}"
 
 
 class FormationDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
@@ -214,7 +213,7 @@ class FormationDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteVie
                 self.request,
                 "Suppression impossible : cette formation contient encore des examens dans ses sessions.",
             )
-            return redirect(reverse("academics:formation_update", args=[self.object.pk]))
+            return redirect(reverse("academics:formation_detail", args=[self.object.pk]))
         try:
             self.object.sessions.all().delete()
             self.object.delete()
@@ -223,7 +222,7 @@ class FormationDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteVie
                 self.request,
                 "Suppression impossible : cette formation contient encore des sessions ou des examens liés.",
             )
-            return redirect(reverse("academics:formation_update", args=[self.object.pk]))
+            return redirect(reverse("academics:formation_detail", args=[self.object.pk]))
         messages.success(self.request, "Formation supprimée.")
         return redirect(f"{self.success_url}?year={year_id}")
 
@@ -236,20 +235,98 @@ class FormationDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_year"] = get_active_year(self.request)
-        ctx["ues"] = self.object.ues.prefetch_related("responsables").order_by("nom")
+        ctx["ues"] = self.object.ues.prefetch_related("ups").order_by("nom")
         ctx["session_count"] = self.object.sessions.count()
         return ctx
 
 
-class TeachingOverviewView(LoginRequiredMixin, TemplateView):
-    template_name = "academics/teaching_overview.html"
+class UPListView(LoginRequiredMixin, ListView):
+    model = UP
+    template_name = "academics/up_list.html"
+    context_object_name = "ups"
+    paginate_by = 30
+
+    def get_queryset(self):
+        return UP.objects.exclude(nom=DEFAULT_UP_NAME).annotate(
+            ue_count=Count("ues", distinct=True),
+            user_count=Count("users", distinct=True),
+        ).order_by("nom")
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_year"] = get_active_year(self.request)
-        ctx["ue_count"] = UE.objects.count()
-        ctx["ues"] = UE.objects.prefetch_related("responsables").order_by("nom")[:8]
+        ctx["can_manage_up"] = is_scolarite_or_admin(self.request.user)
+        params = self.request.GET.copy()
+        params.pop("page", None)
+        ctx["querystring"] = params.urlencode()
         return ctx
+
+
+class UPDetailView(LoginRequiredMixin, DetailView):
+    model = UP
+    template_name = "academics/up_detail.html"
+    context_object_name = "up"
+
+    def get_queryset(self):
+        return UP.objects.exclude(nom=DEFAULT_UP_NAME)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["active_year"] = get_active_year(self.request)
+        ctx["users"] = self.object.users.order_by("last_name", "first_name", "username")
+        ctx["ue_count"] = self.object.ues.count()
+        ctx["user_count"] = self.object.users.count()
+        return ctx
+
+
+class UPCreateView(LoginRequiredMixin, IsScolariteOrAdminMixin, CreateView):
+    model = UP
+    form_class = UPForm
+    template_name = "academics/up_form.html"
+    success_url = reverse_lazy("academics:up_list")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "UP créée.")
+        return response
+
+
+class UPUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
+    model = UP
+    form_class = UPForm
+    template_name = "academics/up_form.html"
+
+    def get_queryset(self):
+        return UP.objects.exclude(nom=DEFAULT_UP_NAME)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, "UP mise à jour.")
+        return response
+
+    def get_success_url(self):
+        return reverse("academics:up_detail", args=[self.object.pk])
+
+
+class UPDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):
+    model = UP
+
+    def get_queryset(self):
+        return UP.objects.exclude(nom=DEFAULT_UP_NAME)
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        try:
+            self.object.delete()
+        except ProtectedError:
+            messages.error(
+                request,
+                "Suppression impossible : cette UP est encore utilisée par des UE ou des utilisateurs.",
+            )
+            return redirect(reverse("academics:up_update", args=[self.object.pk]))
+        else:
+            messages.success(request, "UP supprimée.")
+        return redirect("academics:up_list")
 
 
 class UEListView(LoginRequiredMixin, ListView):
@@ -259,7 +336,10 @@ class UEListView(LoginRequiredMixin, ListView):
     paginate_by = 30
 
     def get_queryset(self):
-        return UE.objects.prefetch_related("responsables", "formations").order_by("nom").distinct()
+        return UE.objects.select_related("formation").prefetch_related("ups").order_by(
+            "formation__nom",
+            "nom",
+        )
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
@@ -286,12 +366,14 @@ class UEUpdateView(LoginRequiredMixin, IsScolariteOrAdminMixin, UpdateView):
     model = UE
     form_class = UEForm
     template_name = "academics/ue_form.html"
-    success_url = reverse_lazy("academics:ue_list")
 
     def form_valid(self, form):
         response = super().form_valid(form)
         messages.success(self.request, "UE mise à jour.")
         return response
+
+    def get_success_url(self):
+        return reverse("academics:formation_detail", args=[self.object.formation_id])
 
 
 class UEDeleteView(LoginRequiredMixin, IsScolariteOrAdminMixin, DeleteView):

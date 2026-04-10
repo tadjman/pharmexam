@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ up.nom }} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">{{ up.nom }}</h1>
+        <p class="page-subtitle">{{ ue_count }} UE rattachée{% if ue_count > 1 %}s{% endif %} · {{ user_count }} utilisateur{% if user_count > 1 %}s{% endif %}</p>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Retour aux UP</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+          <a class="btn btn--accent" href="{% url 'academics:up_update' up.pk %}">Modifier</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card section-card">
+      <div class="section-card__title">
+        <h2 class="card__title">Utilisateurs rattachés</h2>
+      </div>
+      {% if users %}
+        <div class="entity-list">
+          {% for attached_user in users %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ attached_user.display_full_name }}</div>
+                <div class="entity-row__meta">{{ attached_user.get_role_display }}{% if attached_user.display_email %} · {{ attached_user.display_email }}{% endif %}</div>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucun utilisateur n'est actuellement rattaché à cette UP.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}UP — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="page-layout">
+    <div class="page-header">
+      <div class="page-header__title">
+        <h1 class="page-title">Unités pédagogiques</h1>
+      </div>
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}">Voir les formations</a>
+        {% if can_manage_up %}
+          <a class="btn btn--primary" href="{% url 'academics:up_create' %}">+ Nouvelle UP</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card section-card">
+      <div class="section-card__title">
+        <!--<h2 class="card__title">Liste des UP</h2>-->
+        <p class="card__meta">{{ page_obj.paginator.count }} UP</p>
+      </div>
+      {% if ups %}
+        <div class="entity-list">
+          {% for up in ups %}
+            <div class="entity-row">
+              <div class="entity-row__main">
+                <div class="entity-row__title">{{ up.nom }}</div>
+                <div class="entity-row__meta">
+                  {{ up.ue_count }} UE rattachée{% if up.ue_count > 1 %}s{% endif %} · {{ up.user_count }} utilisateur{% if up.user_count > 1 %}s{% endif %}
+                </div>
+              </div>
+              <div class="entity-row__actions">
+                <a class="btn btn--outline" href="{% url 'academics:up_detail' up.pk %}">Détails</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="page-subtitle" style="margin:0;">Aucune UP n'est encore créée.</p>
+      {% endif %}
+    </div>
+
+    {% include "includes/pagination.html" %}
+  </div>
+{% endblock %}

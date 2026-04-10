@@ -24,7 +24,7 @@ Le système garantit automatiquement :
 - ✅ Respect des capacités des salles  
 - ✅ Absence de conflits horaires  
 - ✅ Respect des quotas de surveillants  
-- ✅ Cohérence des responsables pédagogiques  
+- ✅ Cohérence des affectations d’examens  
 
 ---
 
@@ -35,7 +35,7 @@ Le système gère plusieurs types d’utilisateurs :
 | Rôle | Description |
 |------|------------|
 | SCOLARITE | Gestion administrative |
-| ENSEIGNANT | Responsable pédagogique |
+| ENSEIGNANT | Surveillant enseignant |
 | MEMBRE_POOL | Surveillant |
 
 Les administrateurs parmis ces utilisateurs disposent de permissions étendues.
@@ -63,7 +63,6 @@ Un examen doit obligatoirement comporter :
 - Nom
 - UE
 - UE de rattachement
-- Responsable (appartenant aux responsables de l’UE)
 - Nombre total d’élèves
 - Nombre d’élèves avec tiers temps
 - Nombre de surveillants requis

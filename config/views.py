@@ -1,16 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.generic import TemplateView
 
-from academics.models import AnneeUniversitaire
 from accounts.models import RoleUtilisateur
+from academics.utils import get_active_year
 from exams.models import Examen, StatutExamen
-
-
-def get_active_year(request):
-    year_id = request.session.get("active_year_id")
-    if year_id:
-        return AnneeUniversitaire.objects.filter(pk=year_id).first()
-    return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
 class TableauDeBordView(LoginRequiredMixin, TemplateView):

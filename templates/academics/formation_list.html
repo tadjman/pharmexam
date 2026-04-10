@@ -7,21 +7,20 @@
       <div class="page-header__title">
         <h1 class="page-title">Formations{% if selected_year %} {{ selected_year.nom }}{% endif %}</h1>
       </div>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <div class="page-header__actions">
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Voir les UP</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
           <a class="btn btn--primary" href="{{ new_formation_url }}">+ Nouvelle formation</a>
-        </div>
-      {% endif %}
+        {% endif %}
+      </div>
     </div>
 
     {% include "includes/inactive_year_flag.html" with year=selected_year %}
 
     <div class="card section-card">
       <div class="section-card__title">
-        <h2 class="card__title">Formations</h2>
-        {% if selected_year %}
-          <p class="card__meta">{{ selected_year.nom }}</p>
-        {% endif %}
+        <!--<h2 class="card__title">Liste des formations</h2>-->
+          <p class="card__meta">{{ page_obj.paginator.count }} formations</p>
       </div>
       {% if object_list %}
         <div class="entity-list">

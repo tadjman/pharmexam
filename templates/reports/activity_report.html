@@ -8,61 +8,65 @@
         <h1 class="page-title">Suivi{% if active_year %} {{ active_year.nom }}{% endif %}</h1>
         <p class="page-subtitle">Suivi des surveillances de l'année active.</p>
       </div>
-      <div class="page-header__actions">
-        <a class="btn btn--outline" href="{% url 'reports:export_center' %}">Centre d'exports</a>
-        <a class="btn btn--soft" href="{% url 'reports:export_year' %}">Exporter l'année</a>
-      </div>
-    </div>
-
-    <div class="card">
-      <form method="get" class="selector-form report-filter-form">
-        <input type="hidden" name="filters" value="1">
-        <div class="selector-grid report-filter-form__grid">
-          <div class="selector-field report-filter-form__search">
-            <label class="selector-label" for="report-search">Rechercher un utilisateur</label>
-            <div class="report-filter-form__search-row">
-              <input
-                id="report-search"
-                type="text"
-                name="q"
-                class="input"
-                value="{{ query }}"
-                placeholder="Prénom ou nom"
-              >
-              <button class="btn btn--soft btn--icon" type="submit" aria-label="Entrée" title="Entrée">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 12h11m0 0-4-4m4 4-4 4M20 5v14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-                </svg>
-                <span class="sr-only">Entrée</span>
-              </button>
-              <a class="btn btn--accent btn--icon" href="{% url 'reports:activity_report' %}" aria-label="Reset" title="Reset">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
-                </svg>
-                <span class="sr-only">Reset</span>
-              </a>
-            </div>
-          </div>
-
-          <div class="selector-field">
-            <span class="selector-label">Rôles affichés</span>
-            <div class="report-filter-form__roles">
-              {% for option in role_options %}
-                <label class="report-filter-form__role">
-                  <input
-                    type="checkbox"
-                    name="roles"
-                    value="{{ option.value }}"
-                    {% if option.value in selected_roles %}checked{% endif %}
-                  >
-                  <span>{{ option.label }}</span>
-                </label>
-              {% endfor %}
-            </div>
-          </div>
+      {% if can_view_global_reports %}
+        <div class="page-header__actions">
+          <a class="btn btn--outline" href="{% url 'reports:export_center' %}">Centre d'exports</a>
+          <a class="btn btn--soft" href="{% url 'reports:export_year' %}">Exporter l'année</a>
         </div>
-      </form>
+      {% endif %}
     </div>
+
+    {% if can_view_global_reports %}
+      <div class="card">
+        <form method="get" class="selector-form report-filter-form">
+          <input type="hidden" name="filters" value="1">
+          <div class="selector-grid report-filter-form__grid">
+            <div class="selector-field report-filter-form__search">
+              <label class="selector-label" for="report-search">Rechercher un utilisateur</label>
+              <div class="report-filter-form__search-row">
+                <input
+                  id="report-search"
+                  type="text"
+                  name="q"
+                  class="input"
+                  value="{{ query }}"
+                  placeholder="Prénom ou nom"
+                >
+                <button class="btn btn--soft btn--icon" type="submit" aria-label="Entrée" title="Entrée">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 12h11m0 0-4-4m4 4-4 4M20 5v14" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+                  </svg>
+                  <span class="sr-only">Entrée</span>
+                </button>
+                <a class="btn btn--accent btn--icon" href="{% url 'reports:activity_report' %}" aria-label="Reset" title="Reset">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>
+                  </svg>
+                  <span class="sr-only">Reset</span>
+                </a>
+              </div>
+            </div>
+
+            <div class="selector-field">
+              <span class="selector-label">Rôles affichés</span>
+              <div class="report-filter-form__roles">
+                {% for option in role_options %}
+                  <label class="report-filter-form__role">
+                    <input
+                      type="checkbox"
+                      name="roles"
+                      value="{{ option.value }}"
+                      {% if option.value in selected_roles %}checked{% endif %}
+                    >
+                    <span>{{ option.label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    {% endif %}
 
     <div class="card section-card report-section-card">
       {% if rows %}

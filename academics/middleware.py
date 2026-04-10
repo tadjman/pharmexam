@@ -1,6 +1,7 @@
 from django.shortcuts import redirect
 from django.urls import reverse
-from .models import AnneeUniversitaire
+
+from .utils import get_active_year
 
 
 class RequireActiveYearMiddleware:
@@ -29,11 +30,8 @@ class RequireActiveYearMiddleware:
             if not path.startswith(allowed_prefixes):
                 year_id = request.session.get("active_year_id")
                 if year_id is None:
-                    # fallback DB (si une année is_active existe)
-                    year = AnneeUniversitaire.objects.filter(is_active=True).first()
-                    if year:
-                        request.session["active_year_id"] = str(year.pk)
-                    else:
+                    year = get_active_year(request, persist_session=True)
+                    if year is None:
                         return redirect(reverse("academics:annee_list"))
 
         return self.get_response(request)

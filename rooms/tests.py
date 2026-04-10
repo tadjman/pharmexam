@@ -159,7 +159,9 @@ class AffectationSalleLockWindowTests(TestCase):
         )
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation lock")
         self.ue = UE.objects.create(nom="UE Lock")
+        self.ue_secondaire = UE.objects.create(nom="UE Lock 2")
         self.formation.ues.add(self.ue)
+        self.formation.ues.add(self.ue_secondaire)
         self.session = SessionExamen.objects.create(formation=self.formation, nom="Session lock")
         self.salle = Salle.objects.create(nom="Lock room")
 
@@ -215,8 +217,7 @@ class AffectationSalleLockWindowTests(TestCase):
 
         second_exam = Examen.objects.create(
             session=self.session,
-            ue=self.ue,
-            nom="Exam 2",
+            ue=self.ue_secondaire,
             date=date(2031, 1, 10),
             heure_debut=time(12, 30),
             heure_fin=time(14, 0),

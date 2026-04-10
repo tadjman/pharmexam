@@ -1,8 +1,7 @@
 from django import forms
+from django.forms import inlineformset_factory
 
-from accounts.models import RoleUtilisateur, User
-
-from .models import AnneeUniversitaire, Formation, UE
+from .models import DEFAULT_UP_NAME, AnneeUniversitaire, Formation, UE, UP
 
 
 class AnneeUniversitaireForm(forms.ModelForm):
@@ -17,13 +16,6 @@ class AnneeUniversitaireForm(forms.ModelForm):
         self.fields["date_fin"].widget.attrs.setdefault("class", "input")
 
 
-def _responsables_queryset():
-    return User.objects.filter(
-        role__in=[RoleUtilisateur.SCOLARITE, RoleUtilisateur.ENSEIGNANT],
-        is_active=True,
-    ).order_by("username")
-
-
 class FormationForm(forms.ModelForm):
     FORMATION_YEAR_LABEL_CHOICES = (
         ("Année unique", "Année unique"),
@@ -36,15 +28,11 @@ class FormationForm(forms.ModelForm):
 
     class Meta:
         model = Formation
-        fields = ["nom", "ues"]
-        widgets = {
-            "ues": forms.CheckboxSelectMultiple(),
-        }
+        fields = ["nom"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["nom"].widget.attrs.setdefault("class", "input")
-        self.fields["ues"].queryset = UE.objects.order_by("nom")
         self.is_creation = self.instance._state.adding
         if self.is_creation:
             self.fields["formation_year_label"] = forms.ChoiceField(
@@ -77,21 +65,79 @@ class FormationForm(forms.ModelForm):
         return cleaned_data
 
 
+def _formations_queryset():
+    return Formation.objects.select_related("annee_universitaire").order_by(
+        "-annee_universitaire__date_debut",
+        "nom",
+    )
+
+
+def _ups_queryset():
+    return UP.objects.exclude(nom=DEFAULT_UP_NAME).order_by("nom")
+
+
 class UEForm(forms.ModelForm):
     class Meta:
         model = UE
-        fields = ["code_ue", "nom", "responsables"]
+        fields = ["formation", "code_ue", "nom", "ups"]
         widgets = {
-            "responsables": forms.CheckboxSelectMultiple(),
+            "ups": forms.CheckboxSelectMultiple(),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.is_creation = self.instance._state.adding
-        self.fields["responsables"].queryset = _responsables_queryset()
+        if self.is_creation:
+            self.fields["formation"].queryset = _formations_queryset()
+            self.fields["formation"].required = True
+            self.fields["formation"].widget.attrs.setdefault("class", "input")
+        else:
+            self.fields.pop("formation")
+        self.fields["ups"].queryset = _ups_queryset()
         self.fields["code_ue"].required = False
         self.fields["code_ue"].widget.attrs.setdefault("class", "input")
         self.fields["nom"].widget.attrs.setdefault("class", "input")
 
     def clean_code_ue(self):
         return (self.cleaned_data.get("code_ue") or "").strip().upper().replace(" ", "")
+
+
+class UEInlineForm(forms.ModelForm):
+    class Meta:
+        model = UE
+        fields = ["code_ue", "nom", "ups"]
+        widgets = {
+            "ups": forms.CheckboxSelectMultiple(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["code_ue"].required = False
+        self.fields["code_ue"].widget.attrs.setdefault("class", "input")
+        self.fields["nom"].widget.attrs.setdefault("class", "input")
+        self.fields["ups"].queryset = _ups_queryset()
+        self.fields["ups"].required = False
+
+    def clean_code_ue(self):
+        return (self.cleaned_data.get("code_ue") or "").strip().upper().replace(" ", "")
+
+
+FormationUEFormSet = inlineformset_factory(
+    Formation,
+    UE,
+    form=UEInlineForm,
+    fields=["code_ue", "nom", "ups"],
+    extra=1,
+    can_delete=False,
+)
+
+
+class UPForm(forms.ModelForm):
+    class Meta:
+        model = UP
+        fields = ["nom"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_creation = self.instance._state.adding
+        self.fields["nom"].widget.attrs.setdefault("class", "input")

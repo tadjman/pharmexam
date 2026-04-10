@@ -10,10 +10,6 @@
       </div>
       <div class="page-header__actions">
         <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour aux formations</a>
-        <a class="btn btn--outline" href="{% url 'exams:exam_list' %}?year={{ formation.annee_universitaire_id }}&formation={{ formation.pk }}">Voir les examens</a>
-        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-          <a class="btn btn--accent" href="{% url 'academics:formation_update' formation.pk %}">Modifier</a>
-        {% endif %}
       </div>
     </div>
 
@@ -28,17 +24,20 @@
           {% for ue in ues %}
             <div class="entity-row">
               <div class="entity-row__main">
-                <div class="entity-row__title">{{ ue.display_label }}</div>
-                <div class="entity-row__meta">
-                  <span>Responsables :</span>
-                  <span>
-                    {% for responsable in ue.responsables.all %}
-                      {{ responsable.display_full_name }}{% if not forloop.last %}, {% endif %}
-                    {% empty %}
-                      Aucun responsable
-                    {% endfor %}
-                  </span>
+                <div class="entity-row__title exam-list-title">
+                  <span class="exam-color-dot" style="--exam-accent: {{ ue.couleur }};"></span>
+                  <span>{{ ue.display_label }}</span>
                 </div>
+                <div class="entity-row__meta">
+                  {% with up_count=ue.ups.all|length %}
+                    <span>{{ up_count }} UP{% if up_count > 1 %}s{% endif %}</span>
+                  {% endwith %}
+                </div>
+              </div>
+              <div class="entity-row__actions">
+                {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+                  <a class="btn btn--accent" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
+                {% endif %}
               </div>
             </div>
           {% endfor %}

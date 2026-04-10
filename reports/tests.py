@@ -49,16 +49,15 @@ class ReportsViewTests(TestCase):
             is_active=True,
         )
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="DFGSP2")
-        ue = UE.objects.create(nom="UE Bio")
-        self.formation.ues.add(ue)
+        self.ue = UE.objects.create(nom="Exam Export")
+        self.formation.ues.add(self.ue)
         self.session = SessionExamen.objects.create(
             formation=self.formation,
             nom="Session export",
         )
         exam = Examen.objects.create(
             session=self.session,
-            ue=ue,
-            nom="Exam Export",
+            ue=self.ue,
             date=date(2028, 1, 12),
             heure_debut=time(9, 0),
             heure_fin=time(11, 30),
@@ -109,10 +108,11 @@ class ReportsViewTests(TestCase):
         self.assertNotContains(response, "Heures totales")
 
     def test_activity_report_orders_users_by_total_hours_descending(self):
+        second_ue = UE.objects.create(nom="Exam Export 2")
+        self.formation.ues.add(second_ue)
         exam = Examen.objects.create(
             session=self.session,
-            ue=self.formation.ues.first(),
-            nom="Exam Export 2",
+            ue=second_ue,
             date=date(2028, 1, 13),
             heure_debut=time(14, 0),
             heure_fin=time(17, 0),
@@ -144,6 +144,56 @@ class ReportsViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Ada LOVELACE")
         self.assertNotContains(response, "Grace HOPPER")
+
+    def test_teacher_only_sees_own_follow_up_and_no_global_export_actions(self):
+        self.client.force_login(self.teacher)
+        session = self.client.session
+        session["active_year_id"] = str(self.year.pk)
+        session.save()
+
+        response = self.client.get(reverse("reports:activity_report"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Ada LOVELACE")
+        self.assertNotContains(response, "Grace HOPPER")
+        self.assertNotContains(response, "Zero WATCHER")
+        self.assertNotContains(response, "Centre d'exports")
+        self.assertNotContains(response, "Exporter l'année")
+        self.assertNotContains(response, 'name="q"')
+        self.assertNotContains(response, 'name="roles"')
+
+    def test_pool_member_only_sees_own_follow_up(self):
+        self.client.force_login(self.pool)
+        session = self.client.session
+        session["active_year_id"] = str(self.year.pk)
+        session.save()
+
+        response = self.client.get(reverse("reports:activity_report"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Grace HOPPER")
+        self.assertNotContains(response, "Ada LOVELACE")
+        self.assertNotContains(response, "Zero WATCHER")
+
+    def test_teacher_cannot_access_global_exports(self):
+        self.client.force_login(self.teacher)
+        session = self.client.session
+        session["active_year_id"] = str(self.year.pk)
+        session.save()
+
+        export_center_response = self.client.get(reverse("reports:export_center"))
+        self.assertEqual(export_center_response.status_code, 403)
+        self.assertContains(
+            export_center_response,
+            "veuillez vous referer a un membre du personnel scolarité ou au service informatique",
+            status_code=403,
+        )
+
+        export_year_response = self.client.get(reverse("reports:export_year"))
+        self.assertEqual(export_year_response.status_code, 403)
+        self.assertContains(
+            export_year_response,
+            "veuillez vous referer a un membre du personnel scolarité ou au service informatique",
+            status_code=403,
+        )
 
     def test_year_export_returns_excel_payload(self):
         response = self.client.get(reverse("reports:export_year"))

@@ -5,7 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from academics.models import AnneeUniversitaire, Formation, UE
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
 from exams.models import Examen, SessionExamen
@@ -36,24 +36,23 @@ class SurveillanceRulesTests(TestCase):
             is_active=True,
         )
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation 2")
-        self.ue = UE.objects.create(nom="UE Chimie")
-        self.formation.ues.add(self.ue)
+        self.ue_1 = UE.objects.create(nom="UE Chimie 1")
+        self.ue_2 = UE.objects.create(nom="UE Chimie 2")
+        self.formation.ues.add(self.ue_1, self.ue_2)
         self.session = SessionExamen.objects.create(
             formation=self.formation,
             nom="Session 2",
         )
         self.exam_1 = Examen.objects.create(
             session=self.session,
-            ue=self.ue,
-            nom="Exam 1",
+            ue=self.ue_1,
             date=date(2026, 11, 10),
             heure_debut=time(8, 0),
             heure_fin=time(10, 0),
         )
         self.exam_2 = Examen.objects.create(
             session=self.session,
-            ue=self.ue,
-            nom="Exam 2",
+            ue=self.ue_2,
             date=date(2026, 11, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -142,7 +141,8 @@ class SurveillanceRulesTests(TestCase):
             date_fin=current.date() + timedelta(days=30),
         )
         dynamic_formation = Formation.objects.create(annee_universitaire=dynamic_year, nom="Formation verrouillage")
-        dynamic_formation.ues.add(self.ue)
+        dynamic_ue = UE.objects.create(nom="UE Verrouillage")
+        dynamic_formation.ues.add(dynamic_ue)
         dynamic_session = SessionExamen.objects.create(
             formation=dynamic_formation,
             nom="Session verrouillage",
@@ -150,8 +150,7 @@ class SurveillanceRulesTests(TestCase):
         locked_room = Salle.objects.create(nom="Salle verrouillee")
         locked_exam = Examen.objects.create(
             session=dynamic_session,
-            ue=self.ue,
-            nom="Exam verrouille",
+            ue=dynamic_ue,
             date=current.date(),
             heure_debut=(current - timedelta(minutes=10)).time().replace(microsecond=0),
             heure_fin=(current + timedelta(minutes=10)).time().replace(microsecond=0),
@@ -346,6 +345,8 @@ class SurveillanceCompletionFlowTests(TestCase):
         self.assertContains(response_new, "Renseignez le prénom, le nom et le rôle")
         self.assertContains(response_new, 'name="first_name"')
         self.assertContains(response_new, 'name="last_name"')
+        self.assertContains(response_new, "UP d'appartenance")
+        up = UP.objects.create(nom="Microbiologie")
         response_new_confirmed = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, other_affectation.pk]),
             {
@@ -356,12 +357,18 @@ class SurveillanceCompletionFlowTests(TestCase):
                 "is_responsable_general": "True",
                 "is_responsable_salle": "",
                 "role": RoleUtilisateur.ENSEIGNANT,
+                "up": str(up.pk),
             },
             follow=True,
         )
         self.assertEqual(response_new_confirmed.status_code, 200)
         created_user = User.objects.get(email="new-watcher@example.com")
+        self.assertEqual(created_user.username, "new.watcher")
         self.assertEqual(created_user.role, RoleUtilisateur.ENSEIGNANT)
+        self.assertEqual(created_user.up, up)
+        self.assertTrue(created_user.has_usable_password())
+        self.assertFalse(created_user.check_password("Pharmexam123!"))
+        self.assertContains(response_new_confirmed, "mot de passe temporaire")
         self.assertTrue(
             Surveillance.objects.filter(
                 affectation_salle=other_affectation,
@@ -369,6 +376,22 @@ class SurveillanceCompletionFlowTests(TestCase):
                 is_responsable_general=True,
             ).exists()
         )
+
+    def test_admin_new_teacher_requires_up_selection(self):
+        response = self.client.post(
+            reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]),
+            {
+                "confirm_new_user": "1",
+                "first_name": "Anne",
+                "last_name": "Teach",
+                "email": "anne.teach@example.com",
+                "is_responsable_general": "",
+                "is_responsable_salle": "",
+                "role": RoleUtilisateur.ENSEIGNANT,
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sélectionnez l&#x27;UP d&#x27;appartenance pour cet enseignant.")
 
     def test_admin_registration_form_only_requests_email_before_new_user_step(self):
         response = self.client.get(reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]))

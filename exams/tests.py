@@ -33,6 +33,8 @@ class ExamenStatusTests(TestCase):
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Pharmacie")
         self.ue = UE.objects.create(nom="UE Pharma")
         self.formation.ues.add(self.ue)
+        self.ue_secondaire = UE.objects.create(nom="UE Pharma 2")
+        self.formation.ues.add(self.ue_secondaire)
         self.session = SessionExamen.objects.create(
             formation=self.formation,
             nom="Session 1",
@@ -41,7 +43,6 @@ class ExamenStatusTests(TestCase):
         self.examen = Examen.objects.create(
             session=self.session,
             ue=self.ue,
-            nom="Examen Test",
             date=date(2036, 3, 20),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -99,8 +100,7 @@ class ExamenStatusTests(TestCase):
     def test_exam_schedule_update_respects_existing_room_lock_windows(self):
         other_exam = Examen.objects.create(
             session=self.session,
-            ue=self.ue,
-            nom="Examen voisin",
+            ue=self.ue_secondaire,
             date=date(2036, 3, 20),
             heure_debut=time(12, 0),
             heure_fin=time(14, 0),
@@ -139,7 +139,8 @@ class ExamCompletionViewTests(TestCase):
         )
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation completion view")
         self.ue = UE.objects.create(nom="UE Completion View")
-        self.formation.ues.add(self.ue)
+        self.ue_secondaire = UE.objects.create(nom="UE Completion View 2")
+        self.formation.ues.add(self.ue, self.ue_secondaire)
         self.session = SessionExamen.objects.create(
             formation=self.formation,
             nom="Session completion view",
@@ -147,7 +148,6 @@ class ExamCompletionViewTests(TestCase):
         self.examen = Examen.objects.create(
             session=self.session,
             ue=self.ue,
-            nom="Examen sans salle",
             date=date(2037, 2, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -172,12 +172,37 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(response, "Nouvel examen")
         self.assertNotContains(response, "Modifier l&#x27;examen")
         self.assertNotContains(response, "Supprimer")
+        self.assertNotContains(response, "<label class=\"form-label\">Nom</label>", html=False)
+
+    def test_exam_create_page_hides_ues_already_used_in_selected_session(self):
+        response = self.client.get(reverse("exams:exam_create") + f"?session={self.session.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            f'<option value="{self.ue.pk}">{self.ue.display_label}</option>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<option value="{self.ue_secondaire.pk}">{self.ue_secondaire.display_label}</option>',
+            html=True,
+        )
 
     def test_exam_update_page_displays_update_title_and_delete_button(self):
         response = self.client.get(reverse("exams:exam_update", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Modifier l'examen")
         self.assertContains(response, "Supprimer")
+        self.assertContains(response, f'value="{self.examen.date.isoformat()}"')
+
+    def test_exam_update_page_keeps_current_ue_available(self):
+        response = self.client.get(reverse("exams:exam_update", args=[self.examen.pk]))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'<option value="{self.ue.pk}" selected>{self.ue.display_label}</option>',
+            html=True,
+        )
 
     def test_session_create_page_displays_creation_title(self):
         response = self.client.get(reverse("exams:session_create") + f"?formation={self.formation.pk}")
@@ -235,7 +260,6 @@ class ExamCompletionViewTests(TestCase):
         exam = Examen.objects.create(
             session=session,
             ue=self.ue,
-            nom="Examen année inactive",
             date=date(2036, 2, 11),
             heure_debut=time(10, 0),
             heure_fin=time(12, 0),
@@ -260,6 +284,19 @@ class ExamCompletionViewTests(TestCase):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "exam-room-card--complete")
+
+    def test_room_update_form_displays_recommended_watchers_placeholder_from_capacity(self):
+        salle = Salle.objects.create(nom="Salle conseillee", capacite=60)
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=salle,
+            nb_surveillants_requis=2,
+        )
+        response = self.client.get(
+            reverse("exams:exam_room_update", args=[self.examen.pk, affectation.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'placeholder="Conseillé : 3"')
 
 
 class SessionDeleteAndValidationTests(TestCase):
@@ -332,9 +369,10 @@ class SessionAndExamScopeTests(TestCase):
         )
         self.formation_a = Formation.objects.create(annee_universitaire=self.year, nom="DFGSP2")
         self.formation_b = Formation.objects.create(annee_universitaire=self.year, nom="DFASP1")
-        self.ue = UE.objects.create(nom="UE Filtres")
-        self.formation_a.ues.add(self.ue)
-        self.formation_b.ues.add(self.ue)
+        self.ue_a = UE.objects.create(nom="Examen Toxicologie")
+        self.ue_b = UE.objects.create(nom="Examen Pharmacologie")
+        self.formation_a.ues.add(self.ue_a)
+        self.formation_b.ues.add(self.ue_b)
         self.session_a = SessionExamen.objects.create(
             formation=self.formation_a,
             nom="Session Janvier",
@@ -345,16 +383,14 @@ class SessionAndExamScopeTests(TestCase):
         )
         Examen.objects.create(
             session=self.session_a,
-            ue=self.ue,
-            nom="Examen Toxicologie",
+            ue=self.ue_a,
             date=date(2033, 1, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
         )
         Examen.objects.create(
             session=self.session_b,
-            ue=self.ue,
-            nom="Examen Pharmacologie",
+            ue=self.ue_b,
             date=date(2033, 6, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -387,7 +423,7 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, "btn--accent")
         self.assertContains(response, "Examen Toxicologie")
         self.assertContains(response, "exam-color-dot")
-        self.assertContains(response, self.ue.couleur)
+        self.assertContains(response, self.ue_a.couleur)
         self.assertNotContains(response, "Examen Pharmacologie")
 
     def test_exam_list_keeps_last_selected_scope_when_reopened_without_params(self):
@@ -404,10 +440,11 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, "Session Janvier")
 
     def test_exam_list_defaults_to_session_with_most_incomplete_exams(self):
+        ue_botanique = UE.objects.create(nom="Examen Botanique")
+        self.formation_a.ues.add(ue_botanique)
         Examen.objects.create(
             session=self.session_a,
-            ue=self.ue,
-            nom="Examen Botanique",
+            ue=ue_botanique,
             date=date(2033, 1, 11),
             heure_debut=time(14, 0),
             heure_fin=time(16, 0),
@@ -443,15 +480,16 @@ class SessionAndExamScopeTests(TestCase):
         )
         Surveillance.objects.create(affectation_salle=affectation_b, surveillant=self.teacher_for_complete_exam())
 
+        ue_galenique = UE.objects.create(nom="Examen Galénique")
+        self.formation_b.ues.add(ue_galenique)
         Examen.objects.create(
             session=self.session_b,
-            ue=self.ue,
-            nom="Examen Galénique",
+            ue=ue_galenique,
             date=date(2033, 6, 11),
             heure_debut=time(14, 0),
             heure_fin=time(16, 0),
         )
-        extra_exam = Examen.objects.get(nom="Examen Galénique")
+        extra_exam = Examen.objects.get(ue=ue_galenique)
         extra_room = Salle.objects.create(nom="Salle Session B 2")
         extra_affectation = AffectationSalle.objects.create(
             examen=extra_exam,
@@ -499,12 +537,138 @@ class SessionAndExamScopeTests(TestCase):
         )
         self.assertContains(response, "Aucun examen n'est encore rattaché à cette session.")
 
+    def test_exam_list_selecting_formation_defaults_to_session_with_most_incomplete_exams(self):
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation ciblée 1")
+        ue_semestre_1 = UE.objects.create(nom="UE Semestre 1")
+        ue_semestre_2_a = UE.objects.create(nom="UE Semestre 2 A")
+        ue_semestre_2_b = UE.objects.create(nom="UE Semestre 2 B")
+        formation.ues.add(ue_semestre_1, ue_semestre_2_a, ue_semestre_2_b)
+        semestre_1 = formation.sessions.get(nom="Semestre 1")
+        semestre_2 = formation.sessions.get(nom="Semestre 2")
+
+        Examen.objects.create(
+            session=semestre_1,
+            ue=ue_semestre_1,
+            date=date(2033, 1, 15),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        Examen.objects.create(
+            session=semestre_2,
+            ue=ue_semestre_2_a,
+            date=date(2033, 2, 15),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        Examen.objects.create(
+            session=semestre_2,
+            ue=ue_semestre_2_b,
+            date=date(2033, 2, 16),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {"formation": str(formation.pk), "session": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "UE Semestre 2 A")
+        self.assertContains(response, "UE Semestre 2 B")
+        self.assertNotContains(response, "UE Semestre 1")
+        self.assertContains(
+            response,
+            f'<option value="{semestre_2.pk}" selected>{semestre_2.nom}</option>',
+            html=True,
+        )
+
+    def test_exam_list_selecting_formation_defaults_to_session_with_most_exams_when_all_complete(self):
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation ciblée 2")
+        ue_semestre_1 = UE.objects.create(nom="Complet Semestre 1")
+        ue_semestre_2_a = UE.objects.create(nom="Complet Semestre 2 A")
+        ue_semestre_2_b = UE.objects.create(nom="Complet Semestre 2 B")
+        formation.ues.add(ue_semestre_1, ue_semestre_2_a, ue_semestre_2_b)
+        semestre_1 = formation.sessions.get(nom="Semestre 1")
+        semestre_2 = formation.sessions.get(nom="Semestre 2")
+
+        exam_semestre_1 = Examen.objects.create(
+            session=semestre_1,
+            ue=ue_semestre_1,
+            date=date(2033, 3, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        exam_semestre_2_a = Examen.objects.create(
+            session=semestre_2,
+            ue=ue_semestre_2_a,
+            date=date(2033, 3, 11),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        exam_semestre_2_b = Examen.objects.create(
+            session=semestre_2,
+            ue=ue_semestre_2_b,
+            date=date(2033, 3, 12),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+
+        for index, exam in enumerate([exam_semestre_1, exam_semestre_2_a, exam_semestre_2_b], start=1):
+            affectation = AffectationSalle.objects.create(
+                examen=exam,
+                salle=Salle.objects.create(nom=f"Salle complète {index}"),
+                nb_surveillants_requis=1,
+            )
+            Surveillance.objects.create(
+                affectation_salle=affectation,
+                surveillant=User.objects.create_user(
+                    username=f"surveillant_complet_{index}",
+                    password="pass",
+                    role=RoleUtilisateur.MEMBRE_POOL,
+                ),
+            )
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {"formation": str(formation.pk), "session": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Complet Semestre 2 A")
+        self.assertContains(response, "Complet Semestre 2 B")
+        self.assertNotContains(response, "Complet Semestre 1")
+        self.assertContains(
+            response,
+            f'<option value="{semestre_2.pk}" selected>{semestre_2.nom}</option>',
+            html=True,
+        )
+
+    def test_exam_list_selecting_formation_defaults_to_semestre_1_when_no_exam_exists(self):
+        formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation ciblée 3")
+        formation.ues.add(UE.objects.create(nom="UE Formation ciblée 3"))
+        semestre_1 = formation.sessions.get(nom="Semestre 1")
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {"formation": str(formation.pk), "session": ""},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'<option value="{semestre_1.pk}" selected>{semestre_1.nom}</option>',
+            html=True,
+        )
+        self.assertContains(response, "Aucun examen n'est encore rattaché à cette session.")
+
     def test_exam_list_displays_pagination_controls(self):
         for index in range(25):
+            ue = UE.objects.create(nom=f"Examen pagination {index}")
+            self.formation_a.ues.add(ue)
             Examen.objects.create(
                 session=self.session_a,
-                ue=self.ue,
-                nom=f"Examen pagination {index}",
+                ue=ue,
                 date=date(2033, 1, 11),
                 heure_debut=time(9, 0),
                 heure_fin=time(11, 0),
@@ -521,7 +685,7 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, "Suivante")
 
     def test_exam_update_page_displays_delete_button_with_confirmation(self):
-        exam = Examen.objects.get(nom="Examen Toxicologie")
+        exam = Examen.objects.get(ue=self.ue_a)
         response = self.client.get(reverse("exams:exam_update", args=[exam.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Supprimer")
@@ -576,7 +740,6 @@ class ExamenValidationTests(TestCase):
         exam = Examen(
             session=self.session,
             ue=ue_outside,
-            nom="Exam bad formation",
             date=date(2032, 1, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -591,7 +754,6 @@ class ExamenValidationTests(TestCase):
         exam = Examen(
             session=self.session,
             ue=ue,
-            nom="Exam bad time",
             date=date(2032, 1, 10),
             heure_debut=time(11, 0),
             heure_fin=time(9, 0),
@@ -606,7 +768,6 @@ class ExamenValidationTests(TestCase):
         exam = Examen(
             session=self.session,
             ue=ue,
-            nom="Exam hors annee",
             date=date(2032, 8, 1),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -614,3 +775,42 @@ class ExamenValidationTests(TestCase):
         with self.assertRaises(ValidationError) as ctx:
             exam.full_clean()
         self.assertIn("date", ctx.exception.message_dict)
+
+    def test_same_session_cannot_have_two_exams_for_the_same_ue(self):
+        ue = UE.objects.create(nom="UE Unique")
+        self.formation.ues.add(ue)
+        Examen.objects.create(
+            session=self.session,
+            ue=ue,
+            date=date(2032, 1, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        duplicate_exam = Examen(
+            session=self.session,
+            ue=ue,
+            date=date(2032, 1, 11),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            duplicate_exam.full_clean()
+        self.assertIn("ue", ctx.exception.message_dict)
+
+    def test_exam_name_is_synchronized_with_its_ue_name(self):
+        ue = UE.objects.create(nom="UE Synchronisée")
+        self.formation.ues.add(ue)
+        exam = Examen.objects.create(
+            session=self.session,
+            ue=ue,
+            nom="Valeur ignorée",
+            date=date(2032, 1, 10),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        self.assertEqual(exam.nom, "UE Synchronisée")
+
+        ue.nom = "UE Synchronisée mise à jour"
+        ue.save()
+        exam.refresh_from_db()
+        self.assertEqual(exam.nom, "UE Synchronisée mise à jour")

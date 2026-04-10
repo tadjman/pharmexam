@@ -31,6 +31,12 @@ class Salle(models.Model):
         if errors:
             raise ValidationError(errors)
 
+    @property
+    def recommended_watchers(self):
+        if not self.capacite or self.capacite <= 0:
+            return None
+        return ((self.capacite - 1) // 25) + 1
+
     def __str__(self) -> str:
         return self.nom
 

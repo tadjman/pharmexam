@@ -1,9 +1,10 @@
 from datetime import date, time
 
+from django.db import IntegrityError
 from django.test import TestCase
 from django.urls import reverse
 
-from academics.models import AnneeUniversitaire, Formation, UE
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from exams.models import Examen, SessionExamen
 from rooms.models import AffectationSalle, Salle
@@ -27,6 +28,7 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Connexion")
         self.assertContains(response, "Nom d’utilisateur")
+        self.assertContains(response, '/media/favicon.png')
 
     def test_valid_login_redirects_to_dashboard(self):
         response = self.client.post(
@@ -55,6 +57,49 @@ class AuthenticationTests(TestCase):
         self.assertEqual(user.display_full_name, "Adam TADJINE")
         self.assertEqual(user.display_email, "adam.tadjine@example.com")
 
+    def test_user_save_normalizes_username_to_first_dot_last_for_new_users(self):
+        user = User.objects.create_user(
+            username="placeholder",
+            password="pass123",
+            role=RoleUtilisateur.MEMBRE_POOL,
+            first_name="Ada",
+            last_name="Lovelace",
+        )
+        self.assertEqual(user.username, "ada.lovelace")
+
+    def test_user_save_normalizes_blank_email_to_none(self):
+        user = User.objects.create_user(
+            username="email.none",
+            password="pass123",
+            role=RoleUtilisateur.MEMBRE_POOL,
+            email="   ",
+        )
+        self.assertIsNone(user.email)
+
+    def test_user_gets_default_up_when_none_is_provided(self):
+        user = User.objects.create_user(
+            username="user.default.up",
+            password="pass123",
+            role=RoleUtilisateur.MEMBRE_POOL,
+        )
+        self.assertIsNotNone(user.up)
+        self.assertEqual(user.up.nom, "Autre")
+
+    def test_user_email_is_unique_when_provided(self):
+        User.objects.create_user(
+            username="first.email",
+            password="pass123",
+            role=RoleUtilisateur.MEMBRE_POOL,
+            email="duplicate@example.com",
+        )
+        with self.assertRaises(IntegrityError):
+            User.objects.create_user(
+                username="second.email",
+                password="pass123",
+                role=RoleUtilisateur.MEMBRE_POOL,
+                email="duplicate@example.com",
+            )
+
     def test_dashboard_displays_kpis_when_active_year_exists(self):
         year = AnneeUniversitaire.objects.create(
             nom="2033/2034",
@@ -66,7 +111,7 @@ class AuthenticationTests(TestCase):
             annee_universitaire=year,
             nom="Formation KPI",
         )
-        ue = UE.objects.create(nom="UE KPI")
+        ue = UE.objects.create(nom="Exam KPI")
         formation.ues.add(ue)
         session = SessionExamen.objects.create(
             formation=formation,
@@ -75,7 +120,6 @@ class AuthenticationTests(TestCase):
         exam = Examen.objects.create(
             session=session,
             ue=ue,
-            nom="Exam KPI",
             date=date(2034, 1, 10),
             heure_debut=time(9, 0),
             heure_fin=time(11, 0),
@@ -90,6 +134,7 @@ class AuthenticationTests(TestCase):
         response = self.client.get(reverse("dashboard"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, f"Tableau de bord {year.nom}")
+        self.assertContains(response, "Gérer les années")
         self.assertContains(response, "surveillants manquants")
         self.assertContains(response, "Formations avec examens incomplets")
         self.assertContains(response, "Examens à compléter")
@@ -109,12 +154,38 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         nav_html = response.content.decode().split('<nav class="nav">', 1)[1].split("</nav>", 1)[0]
         self.assertIn("Tableau de bord", nav_html)
-        self.assertIn("Années universitaires", nav_html)
-        self.assertIn("Formations", nav_html)
-        self.assertIn("Examens", nav_html)
+        self.assertNotIn("Années universitaires", nav_html)
+        self.assertIn("Enseignement", nav_html)
+        self.assertIn("Surveillance", nav_html)
         self.assertIn("Suivi", nav_html)
         self.assertNotIn("Exports", nav_html)
         self.assertNotIn("Admin", nav_html)
+
+    def test_navbar_displays_connected_user_identity_with_role_and_up_for_teacher(self):
+        year = AnneeUniversitaire.objects.create(
+            nom="2035/2036",
+            date_debut="2035-09-01",
+            date_fin="2036-07-31",
+            is_active=True,
+        )
+        up = UP.objects.create(nom="Biochimie")
+        teacher = User.objects.create_user(
+            username="teacher.identity",
+            password="pass123",
+            role=RoleUtilisateur.ENSEIGNANT,
+            first_name="lea",
+            last_name="martin",
+            up=up,
+        )
+        self.client.force_login(teacher)
+        session = self.client.session
+        session["active_year_id"] = str(year.pk)
+        session.save()
+        response = self.client.get(reverse("dashboard"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Connecté en tant que")
+        self.assertContains(response, "Lea MARTIN · Enseignant · Biochimie")
+        self.assertContains(response, "brand__user--teacher")
 
     def test_admin_index_uses_pharmexam_branding(self):
         admin_user = User.objects.create_superuser(

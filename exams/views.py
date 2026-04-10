@@ -1,4 +1,5 @@
 from urllib.parse import urlencode
+import secrets
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -7,11 +8,11 @@ from django.db.models import Count, ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
-from django.utils.text import slugify
 from django.views import View
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
-from academics.models import AnneeUniversitaire, Formation
+from academics.models import Formation, UP
+from academics.utils import get_active_year
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
 from config.access import ScolariteOrAdminRequiredMixin, render_access_denied
@@ -29,18 +30,8 @@ from .forms import (
 from .models import Examen, SessionExamen, StatutExamen, build_session_order_expression
 
 
-DEFAULT_SURVEILLANT_PASSWORD = "Pharmexam123!"
-
-
 class IsScolariteOrAdminMixin(ScolariteOrAdminRequiredMixin):
     pass
-
-
-def get_active_year(request):
-    year_id = request.session.get("active_year_id")
-    if year_id:
-        return AnneeUniversitaire.objects.filter(pk=year_id).first()
-    return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
 def build_url(name, **params):
@@ -53,16 +44,6 @@ def is_admin_user(user):
     return user.is_authenticated and (
         user.is_superuser or user.is_staff or getattr(user, "role", "") == RoleUtilisateur.SCOLARITE
     )
-
-
-def build_unique_username(first_name: str, last_name: str, email: str) -> str:
-    base = slugify(email.split("@", 1)[0] if email else f"{first_name}.{last_name}") or "surveillant"
-    username = base
-    suffix = 2
-    while User.objects.filter(username=username).exists():
-        username = f"{base}{suffix}"
-        suffix += 1
-    return username
 
 
 class SessionListView(LoginRequiredMixin, ListView):
@@ -235,13 +216,39 @@ class ExamListView(LoginRequiredMixin, ListView):
             return "", ""
         return str(default_session.formation_id), str(default_session.pk)
 
+    def _get_default_session_for_formation(self, formation_id):
+        if not formation_id:
+            return ""
+
+        default_session = (
+            SessionExamen.objects.filter(formation_id=formation_id)
+            .annotate(
+                sort_order=build_session_order_expression(),
+                incomplete_exam_count=Count(
+                    "examens",
+                    filter=Q(examens__statut__in=[StatutExamen.INITIE, StatutExamen.INCOMPLET]),
+                    distinct=True,
+                ),
+                exam_count=Count("examens", distinct=True),
+            )
+            .order_by(
+                "-incomplete_exam_count",
+                "-exam_count",
+                "sort_order",
+                "nom",
+            )
+            .first()
+        )
+        if not default_session:
+            return ""
+        return str(default_session.pk)
+
     def get_queryset(self):
         self.active_year = get_active_year(self.request)
-        self.years = AnneeUniversitaire.objects.order_by("-date_debut", "-date_fin")
         stored_scope = self.request.session.get(self.scope_session_key, {})
         explicit_scope = self._has_explicit_scope()
         stored_scope_present = self._has_stored_scope(stored_scope)
-        self.selected_year = self.active_year or self.years.first()
+        self.selected_year = self.active_year or AnneeUniversitaire.objects.order_by("-date_debut", "-date_fin").first()
 
         if not self.selected_year:
             self.formations = Formation.objects.none()
@@ -250,7 +257,6 @@ class ExamListView(LoginRequiredMixin, ListView):
             self.selected_session = ""
             self.selected_formation_obj = None
             self.selected_session_obj = None
-            self.formations_payload = []
             self.sessions_payload = []
             self._persist_scope()
             return Examen.objects.none()
@@ -260,16 +266,6 @@ class ExamListView(LoginRequiredMixin, ListView):
         self.selected_session = self._read_scope_value("session", stored_scope)
         if not explicit_scope and not stored_scope_present:
             self.selected_formation, self.selected_session = self._get_default_scope_for_year()
-        self.formations_payload = [
-            {
-                "id": str(formation.pk),
-                "year_id": str(formation.annee_universitaire_id),
-                "label": formation.nom,
-            }
-            for formation in Formation.objects.select_related("annee_universitaire").order_by(
-                "annee_universitaire__date_debut", "nom"
-            )
-        ]
         all_sessions = SessionExamen.ordered_queryset(
             SessionExamen.objects.select_related("formation", "formation__annee_universitaire").filter(
                 formation__annee_universitaire=self.selected_year
@@ -290,6 +286,15 @@ class ExamListView(LoginRequiredMixin, ListView):
             self.selected_formation = ""
             self.selected_session = ""
             scope_invalid = True
+
+        formation_changed_without_session = (
+            self.selected_formation
+            and "formation" in self.request.GET
+            and not self.request.GET.get("session", "").strip()
+        )
+        if formation_changed_without_session:
+            self.selected_session = self._get_default_session_for_formation(self.selected_formation)
+
         if self.selected_session:
             selected_session_obj = all_sessions.filter(pk=self.selected_session).first()
             if selected_session_obj and not self.selected_formation:
@@ -300,6 +305,8 @@ class ExamListView(LoginRequiredMixin, ListView):
 
         if not explicit_scope and scope_invalid:
             self.selected_formation, self.selected_session = self._get_default_scope_for_year()
+        elif scope_invalid and self.selected_formation and "formation" in self.request.GET:
+            self.selected_session = self._get_default_session_for_formation(self.selected_formation)
 
         self.selected_formation_obj = self.formations.filter(pk=self.selected_formation).first() if self.selected_formation else None
         self.sessions = all_sessions.filter(formation_id=self.selected_formation) if self.selected_formation else SessionExamen.objects.none()
@@ -314,18 +321,7 @@ class ExamListView(LoginRequiredMixin, ListView):
             self._persist_scope()
             return Examen.objects.none()
 
-        qs = Examen.objects.select_related(
-            "session",
-            "session__formation",
-            "ue",
-        ).filter(session=self.selected_session_obj)
-
-        for exam in qs:
-            exam.update_statut(save=True)
-
-        self._persist_scope()
-
-        return (
+        examens = list(
             Examen.objects.select_related(
                 "session",
                 "session__formation",
@@ -335,10 +331,16 @@ class ExamListView(LoginRequiredMixin, ListView):
             .order_by("date", "heure_debut")
         )
 
+        for exam in examens:
+            exam.update_statut(save=True)
+
+        self._persist_scope()
+
+        return examens
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["active_year"] = getattr(self, "active_year", None)
-        ctx["years"] = getattr(self, "years", AnneeUniversitaire.objects.none())
         ctx["selected_year"] = getattr(self, "selected_year", None)
         ctx["formations"] = getattr(self, "formations", Formation.objects.none())
         ctx["sessions"] = getattr(self, "sessions", SessionExamen.objects.none())
@@ -346,7 +348,6 @@ class ExamListView(LoginRequiredMixin, ListView):
         ctx["selected_session"] = getattr(self, "selected_session", "")
         ctx["selected_formation_obj"] = getattr(self, "selected_formation_obj", None)
         ctx["selected_session_obj"] = getattr(self, "selected_session_obj", None)
-        ctx["formations_payload"] = getattr(self, "formations_payload", [])
         ctx["sessions_payload"] = getattr(self, "sessions_payload", [])
         ctx["new_exam_url"] = build_url("exams:exam_create", session=ctx["selected_session"])
         params = self.request.GET.copy()
@@ -372,12 +373,31 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
         return obj
 
 
-def completion_metrics(exam: Examen):
-    affectations = list(exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant"))
+def completion_metrics(exam: Examen, affectations=None, surveillances_by_affectation=None):
+    if affectations is None:
+        affectations = list(
+            exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant")
+        )
+    if surveillances_by_affectation is None:
+        surveillances_by_affectation = {
+            affectation.pk: list(affectation.surveillances.all()) for affectation in affectations
+        }
     surveillants_required = sum(a.nb_surveillants_requis for a in affectations)
-    surveillants_count = sum(a.surveillances.count() for a in affectations)
-    complete_rooms = sum(1 for a in affectations if a.surveillances.count() >= a.nb_surveillants_requis)
-    responsable_general = exam.surveillances.filter(is_responsable_general=True).select_related("surveillant").first()
+    surveillants_count = sum(len(surveillances_by_affectation.get(a.pk, [])) for a in affectations)
+    complete_rooms = sum(
+        1
+        for a in affectations
+        if len(surveillances_by_affectation.get(a.pk, [])) >= a.nb_surveillants_requis
+    )
+    responsable_general = next(
+        (
+            surveillance
+            for affectation in affectations
+            for surveillance in surveillances_by_affectation.get(affectation.pk, [])
+            if surveillance.is_responsable_general
+        ),
+        None,
+    )
     return {
         "room_count": len(affectations),
         "complete_rooms": complete_rooms,
@@ -391,7 +411,17 @@ def completion_metrics(exam: Examen):
 
 
 def build_completion_context(request, exam: Examen, is_admin: bool):
-    metrics = completion_metrics(exam)
+    affectations = list(
+        exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant")
+    )
+    surveillances_by_affectation = {
+        affectation.pk: list(affectation.surveillances.all()) for affectation in affectations
+    }
+    metrics = completion_metrics(
+        exam,
+        affectations=affectations,
+        surveillances_by_affectation=surveillances_by_affectation,
+    )
     current_user_surveillance = None
     if not is_admin:
         current_user_surveillance = exam.surveillances.filter(
@@ -399,9 +429,8 @@ def build_completion_context(request, exam: Examen, is_admin: bool):
         ).select_related("affectation_salle__salle").first()
 
     room_rows = []
-    affectations = exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant")
     for affectation in affectations:
-        surveillances = list(affectation.surveillances.all())
+        surveillances = surveillances_by_affectation[affectation.pk]
         room_rows.append(
             {
                 "affectation": affectation,
@@ -486,16 +515,21 @@ class ExamCompletionMixin(LoginRequiredMixin):
         first_name = form.cleaned_data.get("first_name", "").strip()
         last_name = form.cleaned_data.get("last_name", "").strip()
         role = form.cleaned_data.get("role", RoleUtilisateur.MEMBRE_POOL)
+        up = form.cleaned_data.get("up")
         user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
         created = False
+        temporary_password = None
         if user is None:
+            temporary_password = secrets.token_urlsafe(12)
+            user_up = up if role == RoleUtilisateur.ENSEIGNANT else UP.get_default_up()
             user = User.objects.create_user(
-                username=build_unique_username(first_name, last_name, email),
+                username=User.build_unique_username(first_name, last_name),
                 email=email,
                 first_name=first_name,
                 last_name=last_name,
                 role=role,
-                password=DEFAULT_SURVEILLANT_PASSWORD,
+                up=user_up,
+                password=temporary_password,
             )
             created = True
         else:
@@ -506,9 +540,12 @@ class ExamCompletionMixin(LoginRequiredMixin):
             if last_name and not user.last_name:
                 user.last_name = last_name
                 updated = True
+            if user.up_id is None:
+                user.up = up if user.role == RoleUtilisateur.ENSEIGNANT and up else UP.get_default_up()
+                updated = True
             if updated:
-                user.save(update_fields=["first_name", "last_name"])
-        return user, created
+                user.save(update_fields=["first_name", "last_name", "up"])
+        return user, created, temporary_password
 
     def _build_registration_form(self, request, affectation):
         if self.is_admin:
@@ -761,7 +798,7 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
         if self.is_admin and request.POST.get("confirm_new_user") == "1":
             confirmation_form = AdminNewUserRoleChoiceForm(request.POST)
             if confirmation_form.is_valid():
-                user, created = self._get_or_create_user_from_registration(confirmation_form)
+                user, created, temporary_password = self._get_or_create_user_from_registration(confirmation_form)
                 previous_states = {"general": [], "room": []}
                 try:
                     previous_states, _ = self._save_surveillance(
@@ -780,7 +817,7 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
                             request,
                             (
                                 f"Nouvel utilisateur créé et inscrit : {user.display_full_name} "
-                                f"(mot de passe par défaut : {DEFAULT_SURVEILLANT_PASSWORD})."
+                                f"(mot de passe temporaire : {temporary_password})."
                             ),
                         )
                     else:
@@ -806,8 +843,9 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
 
             user = request.user
             created = False
+            temporary_password = None
             if self.is_admin:
-                user, created = self._get_or_create_user_from_registration(form)
+                user, created, temporary_password = self._get_or_create_user_from_registration(form)
 
             previous_states = {"general": [], "room": []}
             try:
@@ -827,7 +865,7 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
                         request,
                         (
                             f"Utilisateur créé et inscrit : {user.display_full_name} "
-                            f"(mot de passe par défaut : {DEFAULT_SURVEILLANT_PASSWORD})."
+                            f"(mot de passe temporaire : {temporary_password})."
                         ),
                     )
                 elif self.is_admin:

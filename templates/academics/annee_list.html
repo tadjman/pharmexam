@@ -8,11 +8,12 @@
       <h1 class="page-title">Années universitaires</h1>
       <p class="page-subtitle">Toutes les années référencées par l'application.</p>
       </div>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <div class="page-header__actions">
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'dashboard' %}">Retour</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
           <a class="btn btn--primary" href="{% url 'academics:annee_create' %}">+ Nouvelle année</a>
-        </div>
-      {% endif %}
+        {% endif %}
+      </div>
     </div>
 
     <div class="card section-card">

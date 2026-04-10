@@ -79,6 +79,7 @@ class Examen(models.Model):
 
     class Meta:
         ordering = ["date", "heure_debut"]
+        unique_together = [("session", "ue")]
 
     @property
     def accent_color(self) -> str:
@@ -133,6 +134,12 @@ class Examen(models.Model):
         if self.session_id and self.ue_id:
             if not self.session.formation.ues.filter(pk=self.ue_id).exists():
                 errors["ue"] = "L'UE choisie doit être rattachée à la formation de la session."
+            elif (
+                Examen.objects.filter(session=self.session, ue=self.ue)
+                .exclude(pk=self.pk)
+                .exists()
+            ):
+                errors["ue"] = "Un examen existe déjà pour cette UE dans la session sélectionnée."
 
         if (
             self.pk
@@ -164,6 +171,16 @@ class Examen(models.Model):
 
         if errors:
             raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.ue_id:
+            self.nom = self.ue.nom
+            update_fields = kwargs.get("update_fields")
+            if update_fields is not None:
+                update_fields = set(update_fields)
+                update_fields.add("nom")
+                kwargs["update_fields"] = update_fields
+        super().save(*args, **kwargs)
 
     def is_termine(self) -> bool:
         return timezone.now() >= self.end_dt

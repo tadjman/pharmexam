@@ -46,4 +46,31 @@
       </form>
     </div>
   </div>
+
+  {{ form.room_recommendations|json_script:"room-recommendations-data" }}
+  <script>
+    (function () {
+      const roomSelect = document.getElementById("id_salle");
+      const watchersInput = document.getElementById("id_nb_surveillants_requis");
+      const roomRecommendationsNode = document.getElementById("room-recommendations-data");
+
+      if (!roomSelect || !watchersInput || !roomRecommendationsNode) {
+        return;
+      }
+
+      const roomRecommendations = JSON.parse(roomRecommendationsNode.textContent || "{}");
+
+      function updateRecommendedPlaceholder() {
+        const recommended = roomRecommendations[roomSelect.value];
+        if (recommended) {
+          watchersInput.placeholder = `Conseillé : ${recommended}`;
+        } else {
+          watchersInput.removeAttribute("placeholder");
+        }
+      }
+
+      roomSelect.addEventListener("change", updateRecommendedPlaceholder);
+      updateRecommendedPlaceholder();
+    })();
+  </script>
 {% endblock %}

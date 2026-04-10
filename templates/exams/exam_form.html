@@ -30,15 +30,10 @@
           {% if form.session.errors %}<div class="form-error">{{ form.session.errors }}</div>{% endif %}
         </div>
         <div class="form-field">
-          <label class="form-label">Nom</label>
-          {{ form.nom }}
-          {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
-        </div>
-        <div class="form-field">
           <label class="form-label">UE</label>
           {{ form.ue }}
           {% if form.ue.errors %}<div class="form-error">{{ form.ue.errors }}</div>{% endif %}
-          <p class="form-help">L'UE doit appartenir à la formation de la session choisie.</p>
+          <p class="form-help">L'examen prendra automatiquement le nom de l'UE choisie.</p>
         </div>
 
         <div class="form-grid form-grid--columns">

@@ -5,8 +5,8 @@
   <div class="page-layout">
     <div class="page-header">
       <div class="page-header__title">
-        <h1 class="page-title">UE</h1>
-        <p class="page-subtitle">Gère les unités d'enseignement et leurs responsables.</p>
+        <h1 class="page-title">Unités d'enseignement</h1>
+        <p class="page-subtitle">Gère les unités d'enseignement.</p>
       </div>
       {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
         <div class="page-header__actions">
@@ -23,17 +23,20 @@
               <div class="entity-row__main">
                 <div class="entity-row__title">{{ ue.display_label }}</div>
                 <div class="entity-row__meta">
-                  Responsables :
-                  {% for responsable in ue.responsables.all %}
-                    {{ responsable.display_full_name }}{% if not forloop.last %}, {% endif %}
+                  Formation : {{ ue.formation.nom|default:"Aucune formation" }}
+                </div>
+                <div class="entity-row__meta">
+                  UP :
+                  {% for up in ue.ups.all %}
+                    {{ up.nom }}{% if not forloop.last %}, {% endif %}
                   {% empty %}
-                    Aucun
+                    Aucune
                   {% endfor %}
                 </div>
               </div>
               {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
                 <div class="entity-row__actions">
-                  <a class="btn btn--soft" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
+                  <a class="btn btn--accent" href="{% url 'academics:ue_update' ue.pk %}">Modifier</a>
                   <a class="btn btn--ghost" href="{% url 'academics:ue_delete' ue.pk %}">Supprimer</a>
                 </div>
               {% endif %}

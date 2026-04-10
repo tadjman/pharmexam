@@ -9,6 +9,11 @@
           <span class="dashboard-hero__eyebrow">Année active</span>
           <h1 class="dashboard-hero__title">Tableau de bord {{ active_year.nom }}</h1>
           <p class="dashboard-hero__subtitle">{{ dashboard_message }}</p>
+          {% if is_admin_scope %}
+            <div class="action-row">
+              <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Gérer les années</a>
+            </div>
+          {% endif %}
           <div class="dashboard-hero__badges">
             {% if has_urgent_needs %}
               <span class="badge badge--error">{{ exams_to_complete_count }} examen{% if exams_to_complete_count > 1 %}s{% endif %} à compléter</span>
@@ -129,7 +134,7 @@
           <p class="page-subtitle">Aucune année universitaire active n'est sélectionnée.</p>
         </div>
         <div class="action-row">
-          <a class="btn btn--primary" href="{% url 'academics:annee_list' %}">Gérer les années universitaires</a>
+          <a class="btn btn--primary" href="{% url 'academics:annee_list' %}">Gérer les années</a>
         </div>
       </section>
     {% endif %}

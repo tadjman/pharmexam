@@ -1,7 +1,7 @@
-import uuid
 from collections import Counter
+import uuid
+import random
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils.dateparse import parse_date
@@ -9,22 +9,19 @@ from django.utils.dateparse import parse_date
 
 UE_COLOR_PALETTE = (
     "#2563EB",
-    "#1D4ED8",
-    "#3B82F6",
-    "#60A5FA",
-    "#4F46E5",
-    "#6366F1",
+    "#EAB308",
     "#7C3AED",
-    "#8B5CF6",
-    "#9333EA",
-    "#A855F7",
-    "#0EA5E9",
-    "#0284C7",
-    "#0891B2",
+    "#A3E635",
+    "#EC4899",
+    "#111111",
     "#475569",
-    "#334155",
-    "#D97706",
+    "#F97316",
+    "#6B8E23",
+    "#38BDF8",
+    "#FF2400",
+    "#D6C6A5",
 )
+DEFAULT_UP_NAME = "Autre"
 
 
 class AnneeUniversitaire(models.Model):
@@ -79,16 +76,35 @@ class AnneeUniversitaire(models.Model):
         return self.nom
 
 
+class UP(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nom = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        ordering = ["nom"]
+
+    @classmethod
+    def get_default_up(cls):
+        up, _ = cls.objects.get_or_create(nom=DEFAULT_UP_NAME)
+        return up
+
+    def __str__(self) -> str:
+        return self.nom
+
+
 class UE(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    code_ue = models.CharField(max_length=20, unique=True, null=True, blank=True)
-    nom = models.CharField(max_length=255, unique=True)
-    couleur = models.CharField(max_length=7, blank=True, default="")
-    responsables = models.ManyToManyField(
-        settings.AUTH_USER_MODEL,
-        related_name="ues_responsable",
+    formation = models.ForeignKey(
+        "Formation",
+        on_delete=models.PROTECT,
+        related_name="ues",
+        null=True,
         blank=True,
     )
+    code_ue = models.CharField(max_length=20, unique=True, null=True, blank=True)
+    nom = models.CharField(max_length=255)
+    couleur = models.CharField(max_length=7, blank=True, default="")
+    ups = models.ManyToManyField(UP, related_name="ues", blank=True)
 
     class Meta:
         ordering = ["nom"]
@@ -120,17 +136,20 @@ class UE(models.Model):
     def assign_couleur(self):
         if self.couleur:
             return self.couleur
-
         color_counts = Counter(
             UE.objects.exclude(pk=self.pk).exclude(couleur="").values_list("couleur", flat=True)
         )
-        self.couleur = min(
-            UE_COLOR_PALETTE,
-            key=lambda color: (color_counts.get(color, 0), UE_COLOR_PALETTE.index(color)),
+        min_count = min(color_counts.get(color, 0) for color in UE_COLOR_PALETTE)
+        available_colors = tuple(
+            color for color in UE_COLOR_PALETTE if color_counts.get(color, 0) == min_count
         )
+        self.couleur = random.choice(available_colors)
         return self.couleur
 
     def save(self, *args, **kwargs):
+        previous_name = None
+        if self.pk:
+            previous_name = UE.objects.filter(pk=self.pk).values_list("nom", flat=True).first()
         if self.code_ue:
             self.code_ue = self.code_ue.strip().upper().replace(" ", "")
         if not self.code_ue:
@@ -138,6 +157,8 @@ class UE(models.Model):
         if not self.couleur:
             self.assign_couleur()
         super().save(*args, **kwargs)
+        if previous_name is not None and previous_name != self.nom:
+            self.examens.update(nom=self.nom)
 
     def __str__(self) -> str:
         return self.display_label
@@ -151,7 +172,6 @@ class Formation(models.Model):
         related_name="formations",
     )
     nom = models.CharField(max_length=255)
-    ues = models.ManyToManyField(UE, related_name="formations", blank=True)
 
     class Meta:
         unique_together = [("annee_universitaire", "nom")]

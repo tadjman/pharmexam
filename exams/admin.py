@@ -30,6 +30,7 @@ class ExamenAdmin(admin.ModelAdmin):
     list_filter = ("statut", "session__formation__annee_universitaire", "session__formation", "session")
     search_fields = ("nom", "ue__code_ue", "ue__nom", "session__nom")
     autocomplete_fields = ("session", "ue")
+    fields = ("session", "ue", "date", "heure_debut", "heure_fin", "statut")
 
     @admin.display(ordering="session__formation", description="Formation")
     def get_formation(self, obj):

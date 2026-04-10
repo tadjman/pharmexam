@@ -7,17 +7,12 @@ from django.views import View
 from django.views.generic import TemplateView
 from xml.sax.saxutils import escape
 
-from academics.models import AnneeUniversitaire, Formation
+from academics.models import Formation
+from academics.utils import get_active_year
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
+from config.access import ScolariteOrAdminRequiredMixin, is_scolarite_or_admin, render_access_denied
 from exams.models import Examen, SessionExamen, build_session_order_expression
-
-
-def get_active_year(request):
-    year_id = request.session.get("active_year_id")
-    if year_id:
-        return AnneeUniversitaire.objects.filter(pk=year_id).first()
-    return AnneeUniversitaire.objects.filter(is_active=True).first()
 
 
 def format_minutes(total_minutes: int) -> str:
@@ -25,17 +20,7 @@ def format_minutes(total_minutes: int) -> str:
     return f"{hours}h{minutes:02d}"
 
 
-def get_sessions_queryset(active_year, formation=None):
-    sessions = SessionExamen.objects.select_related("formation").filter(
-        formation__annee_universitaire=active_year
-    )
-    if formation is not None:
-        sessions = sessions.filter(formation=formation)
-    return SessionExamen.ordered_queryset(sessions)
-
-
-def get_report_rows(active_year, formation=None, session=None, roles=None, query=""):
-    sessions = get_sessions_queryset(active_year, formation=formation)
+def get_report_rows(active_year, formation=None, session=None, roles=None, query="", user=None):
     surveillance_qs = Surveillance.objects.filter(
         affectation_salle__examen__session__formation__annee_universitaire=active_year
     ).select_related(
@@ -50,7 +35,10 @@ def get_report_rows(active_year, formation=None, session=None, roles=None, query
     if session is not None:
         surveillance_qs = surveillance_qs.filter(affectation_salle__examen__session=session)
 
-    users_qs = User.objects.filter(is_active=True).prefetch_related(
+    users_qs = User.objects.filter(is_active=True)
+    if user is not None:
+        users_qs = users_qs.filter(pk=user.pk)
+    users_qs = users_qs.prefetch_related(
         Prefetch("surveillances", queryset=surveillance_qs, to_attr="report_surveillances")
     ).order_by("username")
 
@@ -121,13 +109,7 @@ def get_report_rows(active_year, formation=None, session=None, roles=None, query
             row["user"].username,
         )
     )
-    totals = {
-        "users": len(rows),
-        "exam_count": sum(row["exam_count"] for row in rows),
-        "minutes": sum(row["total_minutes"] for row in rows),
-        "hours_display": format_minutes(sum(row["total_minutes"] for row in rows)),
-    }
-    return sessions, rows, totals, detail_rows
+    return rows, detail_rows
 
 
 def build_excel_xml(title, rows, detail_rows):
@@ -416,36 +398,39 @@ class ActivityReportView(LoginRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        can_view_global_reports = is_scolarite_or_admin(self.request.user)
         query = self.request.GET.get("q", "").strip()
         default_roles = [choice[0] for choice in RoleUtilisateur.choices]
-        if "filters" in self.request.GET:
+        if can_view_global_reports and "filters" in self.request.GET:
             selected_roles = [
                 role for role in self.request.GET.getlist("roles")
                 if role in default_roles
             ]
-        else:
+        elif can_view_global_reports:
             selected_roles = default_roles
+        else:
+            selected_roles = [self.request.user.role]
 
-        _, rows, totals, detail_rows = get_report_rows(
+        rows, _ = get_report_rows(
             self.active_year,
             roles=selected_roles,
-            query=query,
+            query=query if can_view_global_reports else "",
+            user=None if can_view_global_reports else self.request.user,
         )
 
         ctx["active_year"] = self.active_year
         ctx["rows"] = rows
-        ctx["detail_rows"] = detail_rows
-        ctx["totals"] = totals
-        ctx["query"] = query
+        ctx["query"] = query if can_view_global_reports else ""
         ctx["selected_roles"] = selected_roles
         ctx["role_options"] = [
             {"value": value, "label": label}
             for value, label in RoleUtilisateur.choices
         ]
+        ctx["can_view_global_reports"] = can_view_global_reports
         return ctx
 
 
-class ExportCenterView(LoginRequiredMixin, TemplateView):
+class ExportCenterView(LoginRequiredMixin, ScolariteOrAdminRequiredMixin, TemplateView):
     template_name = "reports/export_center.html"
 
     def dispatch(self, request, *args, **kwargs):
@@ -466,6 +451,8 @@ class ExportCenterView(LoginRequiredMixin, TemplateView):
 
 class BaseExportView(LoginRequiredMixin, View):
     def dispatch(self, request, *args, **kwargs):
+        if not is_scolarite_or_admin(request.user):
+            return render_access_denied(request, status=403)
         self.active_year = get_active_year(request)
         if not self.active_year:
             messages.warning(request, "Sélectionnez d'abord une année universitaire active.")
@@ -475,7 +462,7 @@ class BaseExportView(LoginRequiredMixin, View):
 
 class YearExportView(BaseExportView):
     def get(self, request, *args, **kwargs):
-        _, rows, _, detail_rows = get_report_rows(self.active_year)
+        rows, detail_rows = get_report_rows(self.active_year)
         title = f"Suivi annee {self.active_year.nom}"
         response = HttpResponse(build_excel_xml(title, rows, detail_rows), content_type="application/vnd.ms-excel")
         response["Content-Disposition"] = f'attachment; filename="suivi-{self.active_year.nom}.xls"'
@@ -489,7 +476,7 @@ class SessionExportView(BaseExportView):
             pk=kwargs["pk"],
             formation__annee_universitaire=self.active_year,
         )
-        _, rows, _, detail_rows = get_report_rows(self.active_year, formation=session.formation, session=session)
+        rows, detail_rows = get_report_rows(self.active_year, formation=session.formation, session=session)
         title = f"Suivi session {session.nom}"
         response = HttpResponse(build_excel_xml(title, rows, detail_rows), content_type="application/vnd.ms-excel")
         response["Content-Disposition"] = f'attachment; filename="suivi-{session.nom}.xls"'

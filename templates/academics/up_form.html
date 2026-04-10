@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{% if form.is_creation %}Nouvelle UP{% else %}Modifier l'UP{% endif %} — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">{% if form.is_creation %}Nouvelle UP{% else %}Modifier l'UP{% endif %}</h1>
+        <p class="page-subtitle">Renseigne le nom de l'unité pédagogique.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Retour aux UP</a>
+    </div>
+
+    <div class="card form-card">
+      <form method="post" novalidate class="form-layout">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="flash flash--error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label">Nom</label>
+            {{ form.nom }}
+            {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
+          <a class="btn btn--outline" href="{% url 'academics:up_list' %}">Retour</a>
+        </div>
+      </form>
+
+      {% if not form.is_creation %}
+        <div class="form-actions" style="margin-top: 12px;">
+          <form method="post" action="{% url 'academics:up_delete' form.instance.pk %}" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette UP ?');">
+            {% csrf_token %}
+            <button class="btn btn--ghost" type="submit">Supprimer</button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

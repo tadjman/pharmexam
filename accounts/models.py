@@ -2,6 +2,7 @@ import uuid
 import re
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils.text import slugify
 
 
 class RoleUtilisateur(models.TextChoices):
@@ -26,7 +27,14 @@ class User(AbstractUser):
 
     # Optionnel (tu as déjà first_name/last_name dans AbstractUser)
     # email est déjà présent, mais pas unique par défaut
-    email = models.EmailField(blank=True)
+    email = models.EmailField(blank=True, null=True, unique=True)
+    up = models.ForeignKey(
+        "academics.UP",
+        on_delete=models.PROTECT,
+        related_name="users",
+        null=True,
+        blank=True,
+    )
 
     @staticmethod
     def _normalize_spacing(value: str) -> str:
@@ -47,6 +55,27 @@ class User(AbstractUser):
     @staticmethod
     def _format_last_name(value: str) -> str:
         return User._normalize_spacing(value).upper()
+
+    @classmethod
+    def build_username_base(cls, first_name: str, last_name: str) -> str:
+        normalized_first_name = slugify(cls._normalize_spacing(first_name))
+        normalized_last_name = slugify(cls._normalize_spacing(last_name))
+        if normalized_first_name and normalized_last_name:
+            return f"{normalized_first_name}.{normalized_last_name}"
+        return normalized_first_name or normalized_last_name or ""
+
+    @classmethod
+    def build_unique_username(cls, first_name: str, last_name: str, exclude_pk=None) -> str:
+        base = cls.build_username_base(first_name, last_name) or "utilisateur"
+        username = base
+        suffix = 2
+        queryset = cls.objects.all()
+        if exclude_pk is not None:
+            queryset = queryset.exclude(pk=exclude_pk)
+        while queryset.filter(username=username).exists():
+            username = f"{base}{suffix}"
+            suffix += 1
+        return username
 
     def is_admin(self) -> bool:
         return self.is_staff or self.is_superuser
@@ -73,9 +102,34 @@ class User(AbstractUser):
         return self.display_email or self.username
 
     def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            kwargs["update_fields"] = update_fields
+
         self.first_name = self._normalize_spacing(self.first_name)
         self.last_name = self._normalize_spacing(self.last_name)
-        self.email = self.display_email
+        normalized_email = self.display_email or None
+        if self.email != normalized_email:
+            self.email = normalized_email
+            if update_fields is not None:
+                update_fields.add("email")
+
+        if self.first_name and self.last_name and (self._state.adding or "." not in (self.username or "")):
+            self.username = self.build_unique_username(
+                self.first_name,
+                self.last_name,
+                exclude_pk=self.pk,
+            )
+            if update_fields is not None:
+                update_fields.add("username")
+
+        if self.up_id is None:
+            from academics.models import UP
+
+            self.up = UP.get_default_up()
+            if update_fields is not None:
+                update_fields.add("up")
         super().save(*args, **kwargs)
 
     def __str__(self) -> str:

@@ -6,9 +6,9 @@
     <div class="form-page__header">
       <div>
         <h1 class="page-title">{% if form.is_creation %}Nouvelle UE{% else %}Modifier l'UE{% endif %}</h1>
-        <p class="page-subtitle">Renseigne le libellé et les responsables pédagogiques.</p>
+        <p class="page-subtitle">Renseigne le code, le nom et les UP rattachées.</p>
       </div>
-      <a class="btn btn--outline" href="{% url 'academics:ue_list' %}">Retour aux UE</a>
+      <a class="btn btn--outline" href="{% if form.is_creation %}{% url 'academics:ue_list' %}{% else %}{% url 'academics:formation_detail' form.instance.formation.pk %}{% endif %}">{% if form.is_creation %}Retour aux UE{% else %}Retour à la formation{% endif %}</a>
     </div>
 
     <div class="card form-card">
@@ -20,6 +20,13 @@
       {% endif %}
 
       <div class="form-grid">
+        {% if form.formation %}
+          <div class="form-field">
+            <label class="form-label">Formation</label>
+            {{ form.formation }}
+            {% if form.formation.errors %}<div class="form-error">{{ form.formation.errors }}</div>{% endif %}
+          </div>
+        {% endif %}
         <div class="form-field">
           <label class="form-label">Code UE</label>
           {{ form.code_ue }}
@@ -32,17 +39,17 @@
           {% if form.nom.errors %}<div class="form-error">{{ form.nom.errors }}</div>{% endif %}
         </div>
         <div class="form-field">
-          <label class="form-label">Responsables</label>
+          <label class="form-label">UP rattachées</label>
           <div class="responsable-picker">
-            {{ form.responsables }}
+            {{ form.ups }}
           </div>
-          {% if form.responsables.errors %}<div class="form-error">{{ form.responsables.errors }}</div>{% endif %}
+          {% if form.ups.errors %}<div class="form-error">{{ form.ups.errors }}</div>{% endif %}
         </div>
       </div>
 
       <div class="form-actions">
         <button class="btn {% if form.is_creation %}btn--primary{% else %}btn--soft{% endif %}" type="submit">Enregistrer</button>
-        <a class="btn btn--outline" href="{% url 'academics:ue_list' %}">Retour</a>
+        <a class="btn btn--outline" href="{% if form.is_creation %}{% url 'academics:ue_list' %}{% else %}{% url 'academics:formation_detail' form.instance.formation.pk %}{% endif %}">Retour</a>
       </div>
     </form>
     </div>

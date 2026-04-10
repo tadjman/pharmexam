@@ -54,6 +54,12 @@
           {% if confirmation_form.role.errors %}<div class="exam-error">{{ confirmation_form.role.errors }}</div>{% endif %}
         </div>
 
+        <div class="form-field" id="teacher-up-field">
+          <label class="exam-label">UP d'appartenance</label>
+          {{ confirmation_form.up }}
+          {% if confirmation_form.up.errors %}<div class="exam-error">{{ confirmation_form.up.errors }}</div>{% endif %}
+        </div>
+
         <div class="exam-form-actions">
           <button class="btn btn--primary" type="submit">Créer et inscrire</button>
           <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Annuler</a>
@@ -61,4 +67,27 @@
       </form>
     </div>
   </div>
+
+  <script>
+    (function () {
+      const roleInputs = document.querySelectorAll('input[name="role"]');
+      const upField = document.getElementById("teacher-up-field");
+      const upSelect = document.getElementById("id_up");
+      if (!roleInputs.length || !upField || !upSelect) {
+        return;
+      }
+      const toggleUpField = function () {
+        const selected = document.querySelector('input[name="role"]:checked');
+        const isTeacher = selected && selected.value === "ENSEIGNANT";
+        upField.style.display = isTeacher ? "" : "none";
+        if (!isTeacher) {
+          upSelect.value = "";
+        }
+      };
+      roleInputs.forEach(function (input) {
+        input.addEventListener("change", toggleUpField);
+      });
+      toggleUpField();
+    })();
+  </script>
 {% endblock %}

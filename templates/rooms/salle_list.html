@@ -8,11 +8,12 @@
         <h1 class="page-title">Salles</h1>
         <p class="page-subtitle">Gestion des salles d'examen. Les périodes de verrouillage sont déterminées automatiquement par les examens affectés.</p>
       </div>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <div class="page-header__actions">
+      <div class="page-header__actions">
+        <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
+        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
           <a class="btn btn--primary" href="{% url 'rooms:salle_create' %}">+ Nouvelle salle</a>
-        </div>
-      {% endif %}
+        {% endif %}
+      </div>
     </div>
 
     <div class="card section-card">

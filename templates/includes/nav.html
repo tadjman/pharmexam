@@ -4,11 +4,8 @@
 
     <div class="nav__group">
       <a class="nav__item" href="{% url 'dashboard' %}">Tableau de bord</a>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-        <a class="nav__item" href="{% url 'academics:annee_list' %}">Années universitaires</a>
-      {% endif %}
-      <a class="nav__item" href="{% url 'academics:formation_list' %}">Formations</a>
-      <a class="nav__item" href="{% url 'exams:exam_list' %}">Examens</a>
+      <a class="nav__item" href="{% url 'academics:formation_list' %}">Enseignement</a>
+      <a class="nav__item" href="{% url 'exams:exam_list' %}">Surveillance</a>
       <a class="nav__item" href="{% url 'reports:activity_report' %}">Suivi</a>
       {% if user.is_staff or user.is_superuser %}
         <a class="nav__item" href="/admin/">Admin</a>
