@@ -8,7 +8,7 @@
         <h1 class="page-title">Examens{% if selected_year %} {{ selected_year.nom }}{% endif %}</h1>
         <p class="page-subtitle">Choisis une formation, puis une session.</p>
       </div>
-      {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+      {% if is_admin_user %}
         <div class="page-header__actions">
           <a class="btn btn--outline" href="{% url 'rooms:salle_list' %}">Gérer les salles</a>
         </div>
@@ -39,7 +39,7 @@
           </div>
         </div>
 
-        {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+        {% if is_admin_user %}
           {% if selected_session_obj %}
             <div class="action-row">
               <a class="btn btn--primary" href="{{ new_exam_url }}">+ Nouvel examen</a>
@@ -63,11 +63,11 @@
         {% if examens %}
           <div class="entity-list">
             {% for examen in examens %}
-              <div class="entity-row">
+              <div class="entity-row{% if examen.list_row_class %} {{ examen.list_row_class }}{% endif %}">
                 <div class="entity-row__main">
                   <div class="entity-row__title exam-list-title">
                     <span class="exam-color-dot" style="--exam-accent: {{ examen.accent_color }};"></span>
-                    <span>{{ examen.nom }}</span>
+                    <span>{{ examen.nom }} {{ examen.list_surveillants_display }}</span>
                   </div>
                   <div class="entity-row__meta">
                     {% if examen.statut == "COMPLET" %}
@@ -83,11 +83,15 @@
                 </div>
 
                 <div class="entity-row__actions">
-                  {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
-                    <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter</a>
+                  {% if is_admin_user %}
+                    {% if examen.can_open_completion %}
+                      <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter</a>
+                    {% endif %}
                     <a class="btn btn--accent" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
                   {% else %}
-                    <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Inscription</a>
+                    {% if examen.can_open_completion %}
+                      <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Inscription</a>
+                    {% endif %}
                   {% endif %}
                 </div>
               </div>

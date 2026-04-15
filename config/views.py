@@ -92,11 +92,13 @@ class TableauDeBordView(LoginRequiredMixin, TemplateView):
                         "session_names": set(),
                         "exam_count": 0,
                         "missing_surveillants": 0,
+                        "exam_items": [],
                     },
                 )
                 formation_entry["session_names"].add(exam.session.nom)
                 formation_entry["exam_count"] += 1
                 formation_entry["missing_surveillants"] += attention_item["missing_surveillants"]
+                formation_entry["exam_items"].append(attention_item)
 
             formations_requiring_attention = sorted(
                 [
@@ -105,6 +107,17 @@ class TableauDeBordView(LoginRequiredMixin, TemplateView):
                         "session_count": len(entry["session_names"]),
                         "exam_count": entry["exam_count"],
                         "missing_surveillants": entry["missing_surveillants"],
+                        "exam_items": sorted(
+                            entry["exam_items"],
+                            key=lambda item: (
+                                item["status_priority"],
+                                -(1 if item["has_missing_surveillants"] else 0),
+                                -item["missing_surveillants"],
+                                item["exam"].date,
+                                item["exam"].heure_debut,
+                                item["exam"].nom.lower(),
+                            ),
+                        ),
                     }
                     for entry in formation_index.values()
                 ],

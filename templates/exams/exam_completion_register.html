@@ -8,7 +8,7 @@
         <h1 class="page-title">{% if is_admin_user %}Inscrire un utilisateur{% else %}S'inscrire à la salle{% endif %}</h1>
         <p class="page-subtitle">{{ examen.nom }} · {{ affectation.salle.nom }}</p>
       </div>
-      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour</a>
     </div>
 
     {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}

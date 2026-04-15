@@ -9,7 +9,7 @@
         <p class="page-subtitle">{{ formation.annee_universitaire.nom }} · {{ session_count }} session{% if session_count > 1 %}s{% endif %} d'examens</p>
       </div>
       <div class="page-header__actions">
-        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour aux formations</a>
+        <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ formation.annee_universitaire_id }}">Retour</a>
       </div>
     </div>
 

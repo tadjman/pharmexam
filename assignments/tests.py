@@ -285,6 +285,48 @@ class SurveillanceCompletionFlowTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertContains(response, "veuillez vous referer a un membre du personnel scolarité ou au service informatique", status_code=403)
 
+    def test_standard_user_cannot_register_to_finished_exam(self):
+        finished_ue = UE.objects.create(nom="UE Completion Finished")
+        self.exam.session.formation.ues.add(finished_ue)
+        finished_exam = Examen.objects.create(
+            session=self.exam.session,
+            ue=finished_ue,
+            date=timezone.localdate() - timedelta(days=1),
+            heure_debut=time(8, 0),
+            heure_fin=time(9, 0),
+        )
+        finished_affectation = AffectationSalle.objects.create(
+            examen=finished_exam,
+            salle=Salle.objects.create(nom="Salle Completion Finished"),
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=finished_affectation,
+            surveillant=User.objects.create_user(
+                username="pool_finished_exam_registered",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
+        finished_exam.refresh_from_db()
+
+        self.client.force_login(self.pool)
+        session_data = self.client.session
+        session_data["active_year_id"] = str(self.year.pk)
+        session_data.save()
+        response = self.client.get(
+            reverse("exams:exam_room_register", args=[finished_exam.pk, finished_affectation.pk]),
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Inscription impossible")
+        self.assertContains(response, "Examen terminé.")
+        self.assertFalse(
+            Surveillance.objects.filter(affectation_salle=finished_affectation, surveillant=self.pool).exists()
+        )
+
     def test_admin_can_manually_register_existing_or_new_user(self):
         existing = User.objects.create_user(
             username="existing_pool",

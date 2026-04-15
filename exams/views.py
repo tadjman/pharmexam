@@ -243,6 +243,28 @@ class ExamListView(LoginRequiredMixin, ListView):
             return ""
         return str(default_session.pk)
 
+    def _enrich_exam_list_row(self, exam):
+        affectations = list(exam.affectations_salles.all())
+        surveillances_by_affectation = {
+            affectation.pk: list(affectation.surveillances.all()) for affectation in affectations
+        }
+        metrics = completion_metrics(
+            exam,
+            affectations=affectations,
+            surveillances_by_affectation=surveillances_by_affectation,
+        )
+        exam.list_surveillants_display = (
+            "0/?"
+            if exam.statut == StatutExamen.INITIE
+            else f"{metrics['surveillants_count']}/{metrics['surveillants_required']}"
+        )
+        exam.list_row_class = {
+            StatutExamen.COMPLET: "entity-row--complete",
+            StatutExamen.INCOMPLET: "entity-row--attention",
+            StatutExamen.TERMINE: "entity-row--finished",
+        }.get(exam.statut, "")
+        exam.can_open_completion = exam.statut != StatutExamen.TERMINE
+
     def get_queryset(self):
         self.active_year = get_active_year(self.request)
         stored_scope = self.request.session.get(self.scope_session_key, {})
@@ -327,12 +349,14 @@ class ExamListView(LoginRequiredMixin, ListView):
                 "session__formation",
                 "ue",
             )
+            .prefetch_related("affectations_salles__surveillances")
             .filter(session=self.selected_session_obj)
             .order_by("date", "heure_debut")
         )
 
         for exam in examens:
             exam.update_statut(save=True)
+            self._enrich_exam_list_row(exam)
 
         self._persist_scope()
 
@@ -340,6 +364,7 @@ class ExamListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        ctx["is_admin_user"] = is_admin_user(self.request.user)
         ctx["active_year"] = getattr(self, "active_year", None)
         ctx["selected_year"] = getattr(self, "selected_year", None)
         ctx["formations"] = getattr(self, "formations", Formation.objects.none())
@@ -371,6 +396,12 @@ class ExamDetailView(LoginRequiredMixin, DetailView):
         obj = super().get_object(queryset=queryset)
         obj.update_statut(save=True)
         return obj
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["is_admin_user"] = is_admin_user(self.request.user)
+        ctx["can_open_completion"] = self.object.statut != StatutExamen.TERMINE
+        return ctx
 
 
 def completion_metrics(exam: Examen, affectations=None, surveillances_by_affectation=None):
@@ -782,8 +813,17 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
             room_available=self._is_room_available_for_user(self.affectation, request.user),
         )
 
+    def _deny_standard_registration_if_finished(self, request):
+        if not self.is_admin and self.examen.statut == StatutExamen.TERMINE:
+            messages.warning(request, "Inscription impossible : l'examen est terminé.")
+            return redirect(self.success_url())
+        return None
+
     def get(self, request, *args, **kwargs):
         self.affectation = self.get_affectation()
+        denied = self._deny_standard_registration_if_finished(request)
+        if denied:
+            return denied
         current_user_surveillance = self.get_current_user_surveillance(request)
         return self._render_registration_page(
             request,
@@ -794,6 +834,9 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
 
     def post(self, request, *args, **kwargs):
         self.affectation = self.get_affectation()
+        denied = self._deny_standard_registration_if_finished(request)
+        if denied:
+            return denied
         current_user_surveillance = self.get_current_user_surveillance(request)
         if self.is_admin and request.POST.get("confirm_new_user") == "1":
             confirmation_form = AdminNewUserRoleChoiceForm(request.POST)

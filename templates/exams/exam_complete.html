@@ -3,7 +3,7 @@
 
 {% block content %}
   <div class="exam-complete-page">
-    <section class="card exam-overview-card">
+    <section class="card exam-overview-card {% if examen.statut == 'COMPLET' or examen.statut == 'TERMINE' %}exam-overview-card--complete{% elif examen.statut == 'INITIE' %}exam-overview-card--neutral{% else %}exam-overview-card--attention{% endif %}">
       <div class="exam-complete-page__header">
         <div>
           <div class="exam-title-row">
@@ -12,7 +12,7 @@
           </div>
           <p class="page-subtitle">{{ examen.session.formation.nom }} · {{ examen.session.nom }} · {{ examen.date }} · {{ examen.heure_debut }} → {{ examen.heure_fin }}</p>
         </div>
-        <a class="btn btn--outline" href="{{ back_to_list_url }}">Retour à la liste</a>
+        <a class="btn btn--outline" href="{{ back_to_list_url }}">Retour</a>
       </div>
 
       <div class="exam-summary">
@@ -33,10 +33,20 @@
         <div class="exam-summary__item">
           <span class="exam-summary__label">Salles</span>
           <strong>{{ metrics.room_count }}</strong>
+          {% if metrics.room_count and not metrics.temps_majore_count %}
+            <div class="exam-summary__badges">
+              <span class="badge badge--warning">Temps majoré non défini</span>
+            </div>
+          {% endif %}
         </div>
         <div class="exam-summary__item">
           <span class="exam-summary__label">Surveillants</span>
           <strong>{{ metrics.surveillants_count }} / {{ metrics.surveillants_required }}</strong>
+          {% if metrics.missing_surveillants > 0 %}
+            <div class="exam-summary__badges">
+              <span class="badge badge--error">+{{ metrics.missing_surveillants }} surveillant{% if metrics.missing_surveillants > 1 %}s{% endif %} requis</span>
+            </div>
+          {% endif %}
         </div>
         <div class="exam-summary__item">
           <span class="exam-summary__label">Responsable d'épreuve</span>
@@ -55,16 +65,6 @@
         </div>
       </div>
 
-      {% if metrics.missing_surveillants > 0 or metrics.room_count and not metrics.temps_majore_count %}
-        <div class="exam-summary__badges" style="margin-top:16px;">
-          {% if metrics.missing_surveillants > 0 %}
-            <span class="badge badge--warning">+{{ metrics.missing_surveillants }} surveillant{% if metrics.missing_surveillants > 1 %}s{% endif %} requis</span>
-          {% endif %}
-          {% if metrics.room_count and not metrics.temps_majore_count %}
-            <span class="badge badge--error">Temps majoré non défini</span>
-          {% endif %}
-        </div>
-      {% endif %}
     </section>
 
     {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
@@ -89,7 +89,7 @@
                     {% endif %}
                     {% if row.is_locked %}
                       <span class="badge badge--warning">Verrouillée</span>
-                    {% elif row.is_full %}
+                    {% elif row.is_full and row.room_responsable %}
                       <span class="badge badge--success">Complète</span>
                     {% endif %}
                     {% if not row.room_responsable %}
@@ -115,6 +115,8 @@
                       <span class="card__meta">Inscription enregistrée sur cette salle.</span>
                     {% elif current_user_surveillance %}
                       <span class="card__meta">Inscription enregistrée sur une autre salle de cet examen.</span>
+                    {% elif examen.statut == "TERMINE" %}
+                      <span class="card__meta">Examen terminé.</span>
                     {% elif row.is_locked %}
                       <span class="card__meta">Inscriptions verrouillées.</span>
                     {% elif row.is_full %}

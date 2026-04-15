@@ -190,11 +190,19 @@ class Examen(models.Model):
         if not affectations:
             return StatutExamen.INITIE
 
-        room_completion = [
-            affectation.surveillances.count() >= affectation.nb_surveillants_requis
-            for affectation in affectations
-        ]
-        if room_completion and all(room_completion):
+        room_completion = []
+        has_general_responsable = False
+        for affectation in affectations:
+            surveillances = list(affectation.surveillances.all())
+            has_quota = len(surveillances) >= affectation.nb_surveillants_requis
+            has_room_responsable = any(
+                surveillance.is_responsable_salle for surveillance in surveillances
+            )
+            if any(surveillance.is_responsable_general for surveillance in surveillances):
+                has_general_responsable = True
+            room_completion.append(has_quota and has_room_responsable)
+
+        if room_completion and all(room_completion) and has_general_responsable:
             if self.is_termine():
                 return StatutExamen.TERMINE
             return StatutExamen.COMPLET

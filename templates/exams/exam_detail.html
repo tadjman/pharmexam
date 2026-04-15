@@ -7,9 +7,11 @@
       <h1 class="page-title">{{ examen.nom }}</h1>
       <p class="page-subtitle">{{ examen.session.formation.nom }} — {{ examen.session.nom }} — {{ examen.ue.display_label }}</p>
     </div>
-    {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
+    {% if is_admin_user %}
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter l'examen</a>
+        {% if can_open_completion %}
+          <a class="btn btn--soft" href="{% url 'exams:exam_complete' examen.pk %}">Compléter l'examen</a>
+        {% endif %}
         <a class="btn btn--accent" href="{% url 'exams:exam_update' examen.pk %}">Modifier</a>
         <a class="btn btn--ghost" href="{% url 'exams:exam_delete' examen.pk %}">Supprimer</a>
       </div>

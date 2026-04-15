@@ -8,7 +8,7 @@
         <h1 class="page-title">{% if form.is_creation %}Nouvel examen{% else %}Modifier l'examen{% endif %}</h1>
         <p class="page-subtitle">Choisis d'abord une session, puis associe l'examen à l'UE de cette session.</p>
       </div>
-      <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour aux examens</a>
+      <a class="btn btn--outline" href="{% url 'exams:exam_list' %}">Retour</a>
     </div>
 
     {% if not form.is_creation and form.instance.session_id %}

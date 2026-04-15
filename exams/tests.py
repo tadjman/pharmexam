@@ -69,9 +69,38 @@ class ExamenStatusTests(TestCase):
         Surveillance.objects.create(
             affectation_salle=affectation,
             surveillant=self.pool,
+            is_responsable_general=True,
+            is_responsable_salle=True,
         )
         self.examen.refresh_from_db()
         self.assertEqual(self.examen.statut, StatutExamen.COMPLET)
+
+    def test_exam_stays_incomplet_without_exam_responsable_even_if_room_is_complete(self):
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=self.salle,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=self.pool,
+            is_responsable_salle=True,
+        )
+        self.examen.refresh_from_db()
+        self.assertEqual(self.examen.statut, StatutExamen.INCOMPLET)
+
+    def test_exam_stays_incomplet_without_room_responsable_even_if_quota_is_satisfied(self):
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=self.salle,
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=self.pool,
+        )
+        self.examen.refresh_from_db()
+        self.assertEqual(self.examen.statut, StatutExamen.INCOMPLET)
 
     def test_exam_becomes_termine_when_end_time_has_passed_and_structure_is_complete(self):
         affectation = AffectationSalle.objects.create(
@@ -82,6 +111,8 @@ class ExamenStatusTests(TestCase):
         Surveillance.objects.create(
             affectation_salle=affectation,
             surveillant=self.pool,
+            is_responsable_general=True,
+            is_responsable_salle=True,
         )
         self.examen.date = timezone.localdate() - timedelta(days=1)
         self.examen.save(update_fields=["date"])
@@ -165,6 +196,7 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(response, "Responsable d'épreuve non défini")
         self.assertContains(response, "exam-color-dot")
         self.assertContains(response, self.examen.accent_color)
+        self.assertContains(response, "exam-overview-card--neutral")
 
     def test_exam_create_page_displays_creation_title_and_no_delete_button(self):
         response = self.client.get(reverse("exams:exam_create") + f"?session={self.session.pk}")
@@ -232,6 +264,7 @@ class ExamCompletionViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Responsable de salle non défini")
         self.assertContains(response, "exam-room-card--attention")
+        self.assertContains(response, "exam-overview-card--attention")
 
     def test_completion_page_shows_missing_temps_majore_indicator(self):
         AffectationSalle.objects.create(
@@ -284,6 +317,7 @@ class ExamCompletionViewTests(TestCase):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "exam-room-card--complete")
+        self.assertContains(response, "exam-overview-card--complete")
 
     def test_room_update_form_displays_recommended_watchers_placeholder_from_capacity(self):
         salle = Salle.objects.create(nom="Salle conseillee", capacite=60)
@@ -426,6 +460,172 @@ class SessionAndExamScopeTests(TestCase):
         self.assertContains(response, self.ue_a.couleur)
         self.assertNotContains(response, "Examen Pharmacologie")
 
+    def test_exam_list_displays_registered_watchers_ratio_and_initiated_placeholder(self):
+        ue_extra = UE.objects.create(nom="Examen Botanique")
+        self.formation_a.ues.add(ue_extra)
+        exam_incomplet = Examen.objects.create(
+            session=self.session_a,
+            ue=ue_extra,
+            date=date(2033, 1, 11),
+            heure_debut=time(14, 0),
+            heure_fin=time(16, 0),
+        )
+        affectation = AffectationSalle.objects.create(
+            examen=exam_incomplet,
+            salle=Salle.objects.create(nom="Salle ratio examens"),
+            nb_surveillants_requis=5,
+        )
+        for index in range(3):
+            Surveillance.objects.create(
+                affectation_salle=affectation,
+                surveillant=User.objects.create_user(
+                    username=f"pool_ratio_{index}",
+                    password="pass",
+                    role=RoleUtilisateur.MEMBRE_POOL,
+                ),
+            )
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {
+                "formation": str(self.formation_a.pk),
+                "session": str(self.session_a.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Examen Toxicologie 0/?")
+        self.assertContains(response, "Examen Botanique 3/5")
+        self.assertContains(response, "Initié")
+        self.assertContains(response, "Incomplet")
+
+    def test_exam_list_applies_status_outline_classes(self):
+        ue_complete = UE.objects.create(nom="Examen Complet Liste")
+        ue_incomplete = UE.objects.create(nom="Examen Incomplet Liste")
+        ue_finished = UE.objects.create(nom="Examen Terminé Liste")
+        self.formation_a.ues.add(ue_complete, ue_incomplete)
+        self.formation_a.ues.add(ue_finished)
+
+        exam_complete = Examen.objects.create(
+            session=self.session_a,
+            ue=ue_complete,
+            date=date(2033, 1, 12),
+            heure_debut=time(9, 0),
+            heure_fin=time(11, 0),
+        )
+        exam_incomplete = Examen.objects.create(
+            session=self.session_a,
+            ue=ue_incomplete,
+            date=date(2033, 1, 13),
+            heure_debut=time(14, 0),
+            heure_fin=time(16, 0),
+        )
+        exam_finished = Examen.objects.create(
+            session=self.session_a,
+            ue=ue_finished,
+            date=timezone.localdate() - timedelta(days=1),
+            heure_debut=time(8, 0),
+            heure_fin=time(9, 0),
+        )
+
+        complete_affectation = AffectationSalle.objects.create(
+            examen=exam_complete,
+            salle=Salle.objects.create(nom="Salle examen complet liste"),
+            nb_surveillants_requis=1,
+        )
+        incomplete_affectation = AffectationSalle.objects.create(
+            examen=exam_incomplete,
+            salle=Salle.objects.create(nom="Salle examen incomplet liste"),
+            nb_surveillants_requis=2,
+        )
+
+        Surveillance.objects.create(
+            affectation_salle=complete_affectation,
+            surveillant=User.objects.create_user(
+                username="surveillant_exam_list_complete",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=incomplete_affectation,
+            surveillant=User.objects.create_user(
+                username="surveillant_exam_list_incomplete",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+        )
+        finished_affectation = AffectationSalle.objects.create(
+            examen=exam_finished,
+            salle=Salle.objects.create(nom="Salle examen termine liste"),
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=finished_affectation,
+            surveillant=User.objects.create_user(
+                username="surveillant_exam_list_finished",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
+        exam_finished.refresh_from_db()
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {
+                "formation": str(self.formation_a.pk),
+                "session": str(self.session_a.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "entity-row entity-row--complete")
+        self.assertContains(response, "entity-row entity-row--attention")
+        self.assertContains(response, "entity-row entity-row--finished")
+
+    def test_exam_list_hides_completion_action_for_finished_exam(self):
+        ue_finished = UE.objects.create(nom="Examen Clos")
+        self.formation_a.ues.add(ue_finished)
+        exam_finished = Examen.objects.create(
+            session=self.session_a,
+            ue=ue_finished,
+            date=timezone.localdate() - timedelta(days=1),
+            heure_debut=time(8, 0),
+            heure_fin=time(9, 0),
+        )
+        finished_affectation = AffectationSalle.objects.create(
+            examen=exam_finished,
+            salle=Salle.objects.create(nom="Salle examen clos"),
+            nb_surveillants_requis=1,
+        )
+        Surveillance.objects.create(
+            affectation_salle=finished_affectation,
+            surveillant=User.objects.create_user(
+                username="surveillant_exam_finished_hidden_action",
+                password="pass",
+                role=RoleUtilisateur.MEMBRE_POOL,
+            ),
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
+        exam_finished.refresh_from_db()
+
+        response = self.client.get(
+            reverse("exams:exam_list"),
+            {
+                "formation": str(self.formation_a.pk),
+                "session": str(self.session_a.pk),
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(
+            response,
+            f'href="{reverse("exams:exam_complete", args=[exam_finished.pk])}">Compléter</a>',
+            html=False,
+        )
+
     def test_exam_list_keeps_last_selected_scope_when_reopened_without_params(self):
         self.client.get(
             reverse("exams:exam_list"),
@@ -471,14 +671,24 @@ class SessionAndExamScopeTests(TestCase):
             salle=salle_a,
             nb_surveillants_requis=1,
         )
-        Surveillance.objects.create(affectation_salle=affectation_a, surveillant=surveillant)
+        Surveillance.objects.create(
+            affectation_salle=affectation_a,
+            surveillant=surveillant,
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
 
         affectation_b = AffectationSalle.objects.create(
             examen=exams[1],
             salle=salle_b,
             nb_surveillants_requis=1,
         )
-        Surveillance.objects.create(affectation_salle=affectation_b, surveillant=self.teacher_for_complete_exam())
+        Surveillance.objects.create(
+            affectation_salle=affectation_b,
+            surveillant=self.teacher_for_complete_exam(),
+            is_responsable_general=True,
+            is_responsable_salle=True,
+        )
 
         ue_galenique = UE.objects.create(nom="Examen Galénique")
         self.formation_b.ues.add(ue_galenique)
@@ -503,6 +713,8 @@ class SessionAndExamScopeTests(TestCase):
                 password="pass",
                 role=RoleUtilisateur.MEMBRE_POOL,
             ),
+            is_responsable_general=True,
+            is_responsable_salle=True,
         )
 
         response = self.client.get(reverse("exams:exam_list"))
@@ -627,6 +839,8 @@ class SessionAndExamScopeTests(TestCase):
                     password="pass",
                     role=RoleUtilisateur.MEMBRE_POOL,
                 ),
+                is_responsable_general=True,
+                is_responsable_salle=True,
             )
 
         response = self.client.get(

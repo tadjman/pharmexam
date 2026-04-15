@@ -9,7 +9,7 @@
         <p class="page-subtitle">Formations rattachées à cette année universitaire.</p>
       </div>
       <div class="page-header__actions">
-        <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour aux années</a>
+        <a class="btn btn--outline" href="{% url 'academics:annee_list' %}">Retour</a>
         <a class="btn btn--outline" href="{% url 'academics:formation_list' %}?year={{ annee.pk }}">Voir dans Formations</a>
         {% if user.role == "SCOLARITE" or user.is_staff or user.is_superuser %}
           <a class="btn btn--primary" href="{% url 'academics:formation_create' %}?year={{ annee.pk }}">+ Nouvelle formation</a>

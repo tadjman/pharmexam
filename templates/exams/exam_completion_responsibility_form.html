@@ -8,7 +8,7 @@
         <h1 class="page-title">Modifier les responsabilités</h1>
         <p class="page-subtitle">{{ surveillance.surveillant.display_full_name }} · {{ surveillance.affectation_salle.salle.nom }}</p>
       </div>
-      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour à la complétion</a>
+      <a class="btn btn--outline" href="{% url 'exams:exam_complete' examen.pk %}">Retour</a>
     </div>
 
     {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}

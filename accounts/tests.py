@@ -137,7 +137,7 @@ class AuthenticationTests(TestCase):
         self.assertContains(response, "Gérer les années")
         self.assertContains(response, "surveillants manquants")
         self.assertContains(response, "Formations avec examens incomplets")
-        self.assertContains(response, "Examens à compléter")
+        self.assertNotContains(response, "Examens à compléter")
         self.assertContains(response, "Formation KPI")
         self.assertContains(response, "Exam KPI")
 
@@ -197,4 +197,4 @@ class AuthenticationTests(TestCase):
         response = self.client.get(reverse("admin:index"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Administration Pharmexam")
-        self.assertContains(response, "Retour à l'application")
+        self.assertContains(response, "Retour")

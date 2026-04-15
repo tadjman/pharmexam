@@ -162,6 +162,14 @@ class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
         "is_responsable_salle",
     ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].widget.attrs.setdefault("class", "input")
+        self.fields["email"].widget.attrs.setdefault(
+            "placeholder",
+            "nouvel.utilisateur@example.com",
+        )
+
 
 class AdminNewUserRoleChoiceForm(forms.Form):
     first_name = forms.CharField(max_length=150)

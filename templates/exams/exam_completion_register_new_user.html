@@ -8,7 +8,7 @@
         <h1 class="page-title">Créer et inscrire un utilisateur</h1>
         <p class="page-subtitle">{{ examen.nom }} · {{ affectation.salle.nom }}</p>
       </div>
-      <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Retour au formulaire</a>
+      <a class="btn btn--outline" href="{% url 'exams:exam_room_register' examen.pk affectation.pk %}">Retour</a>
     </div>
 
     {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}
