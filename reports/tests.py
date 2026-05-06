@@ -91,6 +91,8 @@ class ReportsViewTests(TestCase):
         self.assertNotContains(response, "Zero WATCHER")
         self.assertContains(response, "badge--role-teacher")
         self.assertContains(response, "badge--role-pool")
+        self.assertContains(response, "report-entity-row--teacher")
+        self.assertContains(response, "report-entity-row--pool")
         self.assertContains(response, "Enseignant")
         self.assertContains(response, "Membre du pool")
         self.assertContains(response, "ada.lovelace@example.com")

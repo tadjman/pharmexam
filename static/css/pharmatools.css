@@ -344,6 +344,11 @@ a.underlined { text-decoration: underline; font-weight: 500; }
   background: var(--surface);
 }
 
+.entity-row--soft {
+  border: 1px solid rgba(107, 15, 42, 0.16);
+  box-shadow: 0 8px 22px rgba(61, 14, 30, 0.06);
+}
+
 .entity-row--complete {
   border-width: 2px;
   border-color: rgba(22, 163, 74, 0.7);
@@ -824,6 +829,61 @@ a.underlined { text-decoration: underline; font-weight: 500; }
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 6px;
+}
+
+.exam-up-distribution {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(26, 26, 26, 0.12);
+}
+
+.exam-up-distribution__header {
+  display: grid;
+  gap: 4px;
+}
+
+.exam-up-distribution__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.exam-up-distribution__subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.exam-up-distribution__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.exam-up-distribution__item {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(26, 26, 26, 0.14);
+  border-radius: var(--r-sm);
+  background: #f8f3f5;
+}
+
+.exam-up-distribution__label {
+  color: #5f4a52;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.exam-up-distribution__item strong {
+  font-size: 20px;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.exam-up-distribution__item--other {
+  background: #f5f1f3;
 }
 
 .exam-room-card {
@@ -1326,6 +1386,20 @@ a.underlined { text-decoration: underline; font-weight: 500; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
+.exam-up-coefficients {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid rgba(107, 15, 42, 0.16);
+  border-radius: var(--r-md);
+  background: rgba(138, 21, 56, 0.03);
+}
+
+.exam-up-coefficients__group {
+  display: grid;
+  gap: 12px;
+}
+
 .form-field {
   display: grid;
   gap: 8px;
@@ -1478,6 +1552,24 @@ a.underlined { text-decoration: underline; font-weight: 500; }
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 0.96) 100%);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.report-entity-row--teacher {
+  border-color: rgba(17, 94, 89, 0.28);
+  border-left-color: rgba(17, 94, 89, 0.72);
+  box-shadow: 0 10px 24px rgba(17, 94, 89, 0.08);
+}
+
+.report-entity-row--scolarite {
+  border-color: rgba(154, 52, 18, 0.28);
+  border-left-color: rgba(154, 52, 18, 0.72);
+  box-shadow: 0 10px 24px rgba(154, 52, 18, 0.08);
+}
+
+.report-entity-row--pool {
+  border-color: rgba(51, 65, 85, 0.26);
+  border-left-color: rgba(51, 65, 85, 0.68);
+  box-shadow: 0 10px 24px rgba(51, 65, 85, 0.07);
 }
 
 .report-entity-row .entity-row__main {

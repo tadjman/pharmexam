@@ -65,6 +65,27 @@
         </div>
       </div>
 
+      {% if up_distribution %}
+        <div class="exam-up-distribution">
+          <div class="exam-up-distribution__header">
+            <h2 class="exam-up-distribution__title">Répartition par UP</h2>
+            <p class="exam-up-distribution__subtitle">Surveillants inscrits / attendus selon les coefficients</p>
+          </div>
+          <div class="exam-up-distribution__grid">
+            {% for row in up_distribution.rows %}
+              <div class="exam-up-distribution__item">
+                <span class="exam-up-distribution__label">{{ row.up.nom }}</span>
+                <strong>{{ row.current }}/{{ row.expected }}</strong>
+              </div>
+            {% endfor %}
+            <div class="exam-up-distribution__item exam-up-distribution__item--other">
+              <span class="exam-up-distribution__label">Autres</span>
+              <strong>{{ up_distribution.other_count }}</strong>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
     </section>
 
     {% include "includes/inactive_year_flag.html" with year=examen.session.formation.annee_universitaire %}

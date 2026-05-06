@@ -36,6 +36,32 @@
           <p class="form-help">L'examen prendra automatiquement le nom de l'UE choisie.</p>
         </div>
 
+        {% if form.up_coefficient_groups %}
+          <div class="exam-up-coefficients" data-exam-up-coefficients>
+            <div class="section-card__title">
+              <h2 class="card__title">Coefficients par UP</h2>
+              <p class="card__meta">Saisie informative pour les UP concernées par l'examen.</p>
+            </div>
+            {% for group in form.up_coefficient_groups %}
+              <div class="exam-up-coefficients__group" data-ue-group="{{ group.ue_id }}" hidden>
+                {% if group.entries %}
+                  <div class="form-grid form-grid--columns">
+                    {% for entry in group.entries %}
+                      <div class="form-field">
+                        <label class="form-label">{{ entry.up.nom }}</label>
+                        {{ entry.field }}
+                        {% if entry.field.errors %}<div class="form-error">{{ entry.field.errors }}</div>{% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <p class="form-help">Aucune UP n'est rattachée à cette UE.</p>
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
         <div class="form-grid form-grid--columns">
           <div class="form-field">
             <label class="form-label">Date</label>
@@ -74,4 +100,37 @@
       </form>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% if form.up_coefficient_groups %}
+    <script>
+      (function () {
+        const ueSelect = document.querySelector('select[name="ue"]');
+        const container = document.querySelector('[data-exam-up-coefficients]');
+        if (!ueSelect || !container) {
+          return;
+        }
+
+        const groups = Array.from(container.querySelectorAll('[data-ue-group]'));
+
+        const syncGroups = () => {
+          const selectedUe = ueSelect.value;
+          let hasMatch = false;
+          groups.forEach((group) => {
+            const isMatch = Boolean(selectedUe) && group.dataset.ueGroup === selectedUe;
+            group.hidden = !isMatch;
+            if (isMatch) {
+              hasMatch = true;
+            }
+          });
+          container.hidden = !hasMatch;
+        };
+
+        ueSelect.addEventListener('change', syncGroups);
+        syncGroups();
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

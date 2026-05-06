@@ -6,7 +6,7 @@ from django.db import models
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
-from academics.models import Formation, UE
+from academics.models import Formation, UE, UP
 
 
 class StatutExamen(models.TextChoices):
@@ -217,3 +217,32 @@ class Examen(models.Model):
 
     def __str__(self) -> str:
         return f"{self.nom} ({self.date} {self.heure_debut}-{self.heure_fin})"
+
+
+class ExamenUPCoefficient(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    examen = models.ForeignKey(
+        Examen,
+        on_delete=models.CASCADE,
+        related_name="up_coefficients",
+    )
+    up = models.ForeignKey(
+        UP,
+        on_delete=models.PROTECT,
+        related_name="exam_coefficients",
+    )
+    coefficient = models.PositiveIntegerField()
+
+    class Meta:
+        unique_together = [("examen", "up")]
+        ordering = ["up__nom"]
+
+    def clean(self):
+        errors = {}
+        if self.examen_id and self.up_id and not self.examen.ue.ups.filter(pk=self.up_id).exists():
+            errors["up"] = "L'UP doit être rattachée à l'UE de cet examen."
+        if errors:
+            raise ValidationError(errors)
+
+    def __str__(self) -> str:
+        return f"{self.examen.nom} · {self.up.nom} · coef {self.coefficient}"

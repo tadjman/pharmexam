@@ -5,7 +5,7 @@ from academics.models import DEFAULT_UP_NAME, Formation, UE, UP
 from accounts.models import RoleUtilisateur
 from rooms.models import AffectationSalle, Salle
 
-from .models import Examen, SessionExamen
+from .models import Examen, ExamenUPCoefficient, SessionExamen
 
 
 class SessionForm(forms.ModelForm):
@@ -58,6 +58,7 @@ class ExamForm(forms.ModelForm):
         active_year = kwargs.pop("active_year", None)
         super().__init__(*args, **kwargs)
         self.is_creation = self.instance._state.adding
+        self.up_coefficient_groups = []
 
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "input")
@@ -87,7 +88,72 @@ class ExamForm(forms.ModelForm):
             ues_qs = ues_qs.filter(formation=selected_session.formation).exclude(pk__in=used_ue_ids)
         elif active_year is not None:
             ues_qs = ues_qs.filter(formation__annee_universitaire=active_year)
-        self.fields["ue"].queryset = ues_qs.distinct()
+        self.fields["ue"].queryset = ues_qs.distinct().prefetch_related("ups")
+
+        selected_ue_id = self.data.get("ue") or self.initial.get("ue")
+        if not selected_ue_id and self.instance.pk:
+            selected_ue_id = str(self.instance.ue_id)
+
+        existing_coefficients = {}
+        if self.instance.pk:
+            existing_coefficients = {
+                coefficient.up_id: coefficient.coefficient
+                for coefficient in self.instance.up_coefficients.select_related("up")
+            }
+
+        for ue in self.fields["ue"].queryset:
+            entries = []
+            for up in ue.ups.exclude(nom=DEFAULT_UP_NAME).order_by("nom"):
+                field_name = self._build_up_coefficient_field_name(ue.pk, up.pk)
+                self.fields[field_name] = forms.IntegerField(
+                    required=False,
+                    min_value=0,
+                    widget=forms.NumberInput(attrs={"class": "input", "step": 1, "inputmode": "numeric"}),
+                )
+                if self.instance.pk and self.instance.ue_id == ue.pk and up.pk in existing_coefficients:
+                    self.initial[field_name] = existing_coefficients[up.pk]
+                entries.append(
+                    {
+                        "up": up,
+                        "field_name": field_name,
+                        "field": self[field_name],
+                    }
+                )
+            self.up_coefficient_groups.append(
+                {
+                    "ue": ue,
+                    "ue_id": str(ue.pk),
+                    "entries": entries,
+                }
+            )
+
+    @staticmethod
+    def _build_up_coefficient_field_name(ue_id, up_id):
+        return f"up_coefficient__{ue_id}__{up_id}"
+
+    def save(self, commit=True):
+        exam = super().save(commit=commit)
+        if not commit:
+            return exam
+
+        selected_ue = exam.ue
+        relevant_ups = list(selected_ue.ups.exclude(nom=DEFAULT_UP_NAME).order_by("nom"))
+        relevant_up_ids = {up.pk for up in relevant_ups}
+
+        ExamenUPCoefficient.objects.filter(examen=exam).exclude(up_id__in=relevant_up_ids).delete()
+
+        for up in relevant_ups:
+            field_name = self._build_up_coefficient_field_name(selected_ue.pk, up.pk)
+            coefficient = self.cleaned_data.get(field_name)
+            if coefficient in (None, ""):
+                ExamenUPCoefficient.objects.filter(examen=exam, up=up).delete()
+                continue
+            ExamenUPCoefficient.objects.update_or_create(
+                examen=exam,
+                up=up,
+                defaults={"coefficient": coefficient},
+            )
+        return exam
 
 
 class ExamCompletionRoomForm(forms.ModelForm):

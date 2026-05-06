@@ -72,7 +72,7 @@
       {% if rows %}
         <div class="entity-list report-entity-list">
           {% for row in rows %}
-            <div class="entity-row report-entity-row">
+            <div class="entity-row report-entity-row {% if row.user.role == 'ENSEIGNANT' %}report-entity-row--teacher{% elif row.user.role == 'SCOLARITE' %}report-entity-row--scolarite{% elif row.user.role == 'MEMBRE_POOL' %}report-entity-row--pool{% endif %}">
               <div class="entity-row__main">
                 <div class="entity-row__meta">
                   <span class="entity-row__title">{{ row.user.display_full_name }}</span>

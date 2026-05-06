@@ -1,5 +1,6 @@
-from urllib.parse import urlencode
 import secrets
+from collections import Counter
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -441,6 +442,67 @@ def completion_metrics(exam: Examen, affectations=None, surveillances_by_affecta
     }
 
 
+def build_up_distribution(exam: Examen, total_required: int, surveillances):
+    coefficients = sorted(
+        (coefficient for coefficient in exam.up_coefficients.all() if coefficient.coefficient > 0),
+        key=lambda coefficient: coefficient.up.nom,
+    )
+    if not coefficients:
+        return None
+
+    total_coefficient = sum(coefficient.coefficient for coefficient in coefficients)
+    if total_coefficient <= 0:
+        return None
+
+    expected_counts = {}
+    distributed = 0
+    remainders = []
+    for coefficient in coefficients:
+        base_count, remainder = divmod(total_required * coefficient.coefficient, total_coefficient)
+        expected_counts[coefficient.up_id] = base_count
+        distributed += base_count
+        remainders.append(
+            (
+                remainder,
+                coefficient.coefficient,
+                coefficient.up.nom,
+                coefficient.up_id,
+            )
+        )
+
+    remaining = max(0, total_required - distributed)
+    for _, _, _, up_id in sorted(
+        remainders,
+        key=lambda item: (-item[0], -item[1], item[2]),
+    )[:remaining]:
+        expected_counts[up_id] += 1
+
+    expected_up_ids = {coefficient.up_id for coefficient in coefficients}
+    current_counts = Counter()
+    other_count = 0
+    for surveillance in surveillances:
+        surveillant = surveillance.surveillant
+        if (
+            surveillant.role == RoleUtilisateur.ENSEIGNANT
+            and surveillant.up_id in expected_up_ids
+        ):
+            current_counts[surveillant.up_id] += 1
+        else:
+            other_count += 1
+
+    return {
+        "rows": [
+            {
+                "up": coefficient.up,
+                "current": current_counts.get(coefficient.up_id, 0),
+                "expected": expected_counts.get(coefficient.up_id, 0),
+            }
+            for coefficient in coefficients
+        ],
+        "other_count": other_count,
+    }
+
+
 def build_completion_context(request, exam: Examen, is_admin: bool):
     affectations = list(
         exam.affectations_salles.select_related("salle").prefetch_related("surveillances__surveillant")
@@ -452,6 +514,16 @@ def build_completion_context(request, exam: Examen, is_admin: bool):
         exam,
         affectations=affectations,
         surveillances_by_affectation=surveillances_by_affectation,
+    )
+    all_surveillances = [
+        surveillance
+        for affectation in affectations
+        for surveillance in surveillances_by_affectation.get(affectation.pk, [])
+    ]
+    up_distribution = build_up_distribution(
+        exam,
+        total_required=metrics["surveillants_required"],
+        surveillances=all_surveillances,
     )
     current_user_surveillance = None
     if not is_admin:
@@ -490,6 +562,7 @@ def build_completion_context(request, exam: Examen, is_admin: bool):
     return {
         "examen": exam,
         "metrics": metrics,
+        "up_distribution": up_distribution,
         "room_rows": room_rows,
         "current_user_surveillance": current_user_surveillance,
         "is_admin_user": is_admin,
@@ -503,12 +576,13 @@ class ExamCompletionMixin(LoginRequiredMixin):
             Examen.objects.select_related(
                 "session",
                 "session__formation",
-                "session__formation__annee_universitaire",
-                "ue",
-            ).prefetch_related(
-                "affectations_salles__salle",
-                "affectations_salles__surveillances__surveillant",
-            ),
+            "session__formation__annee_universitaire",
+            "ue",
+        ).prefetch_related(
+            "up_coefficients__up",
+            "affectations_salles__salle",
+            "affectations_salles__surveillances__surveillant",
+        ),
             pk=kwargs["pk"],
         )
         return super().dispatch(request, *args, **kwargs)

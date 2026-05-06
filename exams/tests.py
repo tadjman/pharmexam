@@ -5,10 +5,10 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from academics.models import AnneeUniversitaire, Formation, UE
+from academics.models import AnneeUniversitaire, Formation, UE, UP
 from accounts.models import RoleUtilisateur, User
 from assignments.models import Surveillance
-from exams.models import Examen, SessionExamen, StatutExamen
+from exams.models import Examen, ExamenUPCoefficient, SessionExamen, StatutExamen
 from rooms.models import AffectationSalle, Salle
 
 
@@ -171,7 +171,13 @@ class ExamCompletionViewTests(TestCase):
         self.formation = Formation.objects.create(annee_universitaire=self.year, nom="Formation completion view")
         self.ue = UE.objects.create(nom="UE Completion View")
         self.ue_secondaire = UE.objects.create(nom="UE Completion View 2")
-        self.formation.ues.add(self.ue, self.ue_secondaire)
+        self.ue_troisieme = UE.objects.create(nom="UE Completion View 3")
+        self.up_a = UP.objects.create(nom="Biologie")
+        self.up_b = UP.objects.create(nom="Physiologie")
+        self.up_c = UP.objects.create(nom="Chimie")
+        self.formation.ues.add(self.ue, self.ue_secondaire, self.ue_troisieme)
+        self.ue_secondaire.ups.add(self.up_a, self.up_b)
+        self.ue_troisieme.ups.add(self.up_c)
         self.session = SessionExamen.objects.create(
             formation=self.formation,
             nom="Session completion view",
@@ -220,6 +226,43 @@ class ExamCompletionViewTests(TestCase):
             html=True,
         )
 
+    def test_exam_create_page_displays_up_coefficient_fields_for_available_ues(self):
+        response = self.client.get(reverse("exams:exam_create") + f"?session={self.session.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Coefficients par UP")
+        self.assertContains(response, self.up_a.nom)
+        self.assertContains(response, self.up_b.nom)
+        self.assertContains(
+            response,
+            f'up_coefficient__{self.ue_secondaire.pk}__{self.up_a.pk}',
+        )
+
+    def test_exam_create_saves_up_coefficients_for_selected_ue_only(self):
+        response = self.client.post(
+            reverse("exams:exam_create") + f"?session={self.session.pk}",
+            {
+                "session": str(self.session.pk),
+                "ue": str(self.ue_secondaire.pk),
+                "date": "2037-02-12",
+                "heure_debut": "10:00",
+                "heure_fin": "12:00",
+                f"up_coefficient__{self.ue_secondaire.pk}__{self.up_a.pk}": "2",
+                f"up_coefficient__{self.ue_secondaire.pk}__{self.up_b.pk}": "5",
+                f"up_coefficient__{self.ue_troisieme.pk}__{self.up_c.pk}": "9",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        created_exam = Examen.objects.get(session=self.session, ue=self.ue_secondaire)
+        coefficients = {
+            coefficient.up_id: coefficient.coefficient
+            for coefficient in created_exam.up_coefficients.all()
+        }
+        self.assertEqual(coefficients[self.up_a.pk], 2)
+        self.assertEqual(coefficients[self.up_b.pk], 5)
+        self.assertNotIn(self.up_c.pk, coefficients)
+
     def test_exam_update_page_displays_update_title_and_delete_button(self):
         response = self.client.get(reverse("exams:exam_update", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
@@ -250,7 +293,7 @@ class ExamCompletionViewTests(TestCase):
     def test_completion_page_returns_to_exam_list_and_not_exam_detail(self):
         response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Retour à la liste")
+        self.assertContains(response, "Retour")
         self.assertNotContains(response, "Retour examen")
         self.assertContains(response, reverse("exams:exam_list"))
 
@@ -318,6 +361,131 @@ class ExamCompletionViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "exam-room-card--complete")
         self.assertContains(response, "exam-overview-card--complete")
+
+    def test_completion_page_displays_up_distribution_from_coefficients(self):
+        self.examen.ue = self.ue_secondaire
+        self.examen.save(update_fields=["ue"])
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.up_a, coefficient=1)
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.up_b, coefficient=2)
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=Salle.objects.create(nom="Salle repartition UP"),
+            nb_surveillants_requis=3,
+            temps_majore=True,
+        )
+        teacher_a = User.objects.create_user(
+            username="teacher_up_a",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_a,
+        )
+        teacher_b_1 = User.objects.create_user(
+            username="teacher_up_b_1",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_b,
+        )
+        teacher_b_2 = User.objects.create_user(
+            username="teacher_up_b_2",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_b,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_a,
+            is_responsable_general=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_b_1,
+            is_responsable_salle=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_b_2,
+        )
+
+        response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Répartition par UP")
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">Biologie</span><strong>1/1</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">Physiologie</span><strong>2/2</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item exam-up-distribution__item--other"><span class="exam-up-distribution__label">Autres</span><strong>0</strong></div>',
+            html=True,
+        )
+
+    def test_completion_page_counts_pool_and_unexpected_up_watchers_in_others(self):
+        self.examen.ue = self.ue_secondaire
+        self.examen.save(update_fields=["ue"])
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.up_a, coefficient=1)
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.up_b, coefficient=2)
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=Salle.objects.create(nom="Salle autres UP"),
+            nb_surveillants_requis=3,
+        )
+        teacher_a = User.objects.create_user(
+            username="teacher_up_a_other",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_a,
+        )
+        teacher_c = User.objects.create_user(
+            username="teacher_up_c_other",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_c,
+        )
+        pool_user = User.objects.create_user(
+            username="pool_other",
+            password="pass",
+            role=RoleUtilisateur.MEMBRE_POOL,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_a,
+            is_responsable_general=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_c,
+            is_responsable_salle=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=pool_user,
+        )
+
+        response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">Biologie</span><strong>1/1</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">Physiologie</span><strong>0/2</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item exam-up-distribution__item--other"><span class="exam-up-distribution__label">Autres</span><strong>2</strong></div>',
+            html=True,
+        )
 
     def test_room_update_form_displays_recommended_watchers_placeholder_from_capacity(self):
         salle = Salle.objects.create(nom="Salle conseillee", capacite=60)
