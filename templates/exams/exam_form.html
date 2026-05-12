@@ -37,13 +37,13 @@
         </div>
 
         {% if form.up_coefficient_groups %}
-          <div class="exam-up-coefficients" data-exam-up-coefficients>
+          <div class="exam-up-coefficients" data-exam-up-coefficients{% if not form.has_selected_up_group %} hidden{% endif %}>
             <div class="section-card__title">
               <h2 class="card__title">Coefficients par UP</h2>
               <p class="card__meta">Saisie informative pour les UP concernées par l'examen.</p>
             </div>
             {% for group in form.up_coefficient_groups %}
-              <div class="exam-up-coefficients__group" data-ue-group="{{ group.ue_id }}" hidden>
+              <div class="exam-up-coefficients__group" data-ue-group="{{ group.ue_id }}"{% if not group.is_selected %} hidden{% endif %}>
                 {% if group.entries %}
                   <div class="form-grid form-grid--columns">
                     {% for entry in group.entries %}
@@ -117,18 +117,21 @@
 
         const syncGroups = () => {
           const selectedUe = ueSelect.value;
-          let hasMatch = false;
+          let activeGroup = null;
           groups.forEach((group) => {
             const isMatch = Boolean(selectedUe) && group.dataset.ueGroup === selectedUe;
             group.hidden = !isMatch;
+            group.style.display = isMatch ? '' : 'none';
             if (isMatch) {
-              hasMatch = true;
+              activeGroup = group;
             }
           });
-          container.hidden = !hasMatch;
+          container.hidden = !activeGroup;
+          container.style.display = activeGroup ? '' : 'none';
         };
 
         ueSelect.addEventListener('change', syncGroups);
+        ueSelect.addEventListener('input', syncGroups);
         syncGroups();
       })();
     </script>

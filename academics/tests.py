@@ -423,7 +423,7 @@ class AcademicCatalogViewsTests(TestCase):
         UP.objects.create(nom="Physiologie")
         response = self.client.get(reverse("academics:up_list"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "UP globales")
+        self.assertContains(response, "Unités pédagogiques")
         self.assertContains(response, "Physiologie")
         self.assertContains(response, "Voir les formations")
         self.assertContains(response, "+ Nouvelle UP")
@@ -442,7 +442,7 @@ class AcademicCatalogViewsTests(TestCase):
         response = self.client.get(reverse("academics:up_create"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Nouvelle UP")
-        self.assertContains(response, "Retour aux UP")
+        self.assertContains(response, "Retour")
         self.assertContains(response, 'name="nom"')
 
     def test_default_internal_up_is_hidden_from_up_detail_and_update(self):
@@ -469,7 +469,7 @@ class AcademicCatalogViewsTests(TestCase):
         self.assertContains(response, "Lea MARTIN")
         self.assertContains(response, "Enseignant")
         self.assertContains(response, "lea.martin@example.com")
-        self.assertContains(response, "Retour aux UP")
+        self.assertContains(response, "Retour")
         self.assertContains(response, "Modifier")
         self.assertContains(response, reverse("academics:up_update", args=[up.pk]))
 

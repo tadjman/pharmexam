@@ -172,6 +172,7 @@ class ExamCompletionViewTests(TestCase):
         self.ue = UE.objects.create(nom="UE Completion View")
         self.ue_secondaire = UE.objects.create(nom="UE Completion View 2")
         self.ue_troisieme = UE.objects.create(nom="UE Completion View 3")
+        self.default_up = UP.get_default_up()
         self.up_a = UP.objects.create(nom="Biologie")
         self.up_b = UP.objects.create(nom="Physiologie")
         self.up_c = UP.objects.create(nom="Chimie")
@@ -232,9 +233,36 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(response, "Coefficients par UP")
         self.assertContains(response, self.up_a.nom)
         self.assertContains(response, self.up_b.nom)
+        self.assertContains(response, self.default_up.nom)
         self.assertContains(
             response,
             f'up_coefficient__{self.ue_secondaire.pk}__{self.up_a.pk}',
+        )
+        self.assertContains(
+            response,
+            f'up_coefficient__{self.ue_secondaire.pk}__{self.default_up.pk}',
+        )
+
+    def test_exam_create_page_keeps_selected_ue_coefficient_group_visible_on_invalid_submission(self):
+        response = self.client.post(
+            reverse("exams:exam_create") + f"?session={self.session.pk}",
+            {
+                "session": str(self.session.pk),
+                "ue": str(self.ue_secondaire.pk),
+                "date": "",
+                "heure_debut": "10:00",
+                "heure_fin": "12:00",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'data-exam-up-coefficients')
+        self.assertContains(
+            response,
+            f'data-ue-group="{self.ue_secondaire.pk}"',
+        )
+        self.assertContains(
+            response,
+            f'data-ue-group="{self.ue_troisieme.pk}" hidden',
         )
 
     def test_exam_create_saves_up_coefficients_for_selected_ue_only(self):
@@ -248,6 +276,7 @@ class ExamCompletionViewTests(TestCase):
                 "heure_fin": "12:00",
                 f"up_coefficient__{self.ue_secondaire.pk}__{self.up_a.pk}": "2",
                 f"up_coefficient__{self.ue_secondaire.pk}__{self.up_b.pk}": "5",
+                f"up_coefficient__{self.ue_secondaire.pk}__{self.default_up.pk}": "1",
                 f"up_coefficient__{self.ue_troisieme.pk}__{self.up_c.pk}": "9",
             },
             follow=True,
@@ -261,6 +290,7 @@ class ExamCompletionViewTests(TestCase):
         }
         self.assertEqual(coefficients[self.up_a.pk], 2)
         self.assertEqual(coefficients[self.up_b.pk], 5)
+        self.assertEqual(coefficients[self.default_up.pk], 1)
         self.assertNotIn(self.up_c.pk, coefficients)
 
     def test_exam_update_page_displays_update_title_and_delete_button(self):
@@ -484,6 +514,57 @@ class ExamCompletionViewTests(TestCase):
         self.assertContains(
             response,
             '<div class="exam-up-distribution__item exam-up-distribution__item--other"><span class="exam-up-distribution__label">Autres</span><strong>2</strong></div>',
+            html=True,
+        )
+
+    def test_completion_page_counts_default_up_in_autre_row_when_configured(self):
+        self.examen.ue = self.ue_secondaire
+        self.examen.save(update_fields=["ue"])
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.up_a, coefficient=1)
+        ExamenUPCoefficient.objects.create(examen=self.examen, up=self.default_up, coefficient=1)
+        affectation = AffectationSalle.objects.create(
+            examen=self.examen,
+            salle=Salle.objects.create(nom="Salle autre configure"),
+            nb_surveillants_requis=2,
+        )
+        teacher_a = User.objects.create_user(
+            username="teacher_up_a_autre",
+            password="pass",
+            role=RoleUtilisateur.ENSEIGNANT,
+            up=self.up_a,
+        )
+        pool_user = User.objects.create_user(
+            username="pool_autre_configure",
+            password="pass",
+            role=RoleUtilisateur.MEMBRE_POOL,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=teacher_a,
+            is_responsable_general=True,
+        )
+        Surveillance.objects.create(
+            affectation_salle=affectation,
+            surveillant=pool_user,
+            is_responsable_salle=True,
+        )
+
+        response = self.client.get(reverse("exams:exam_complete", args=[self.examen.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            f'<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">{self.default_up.nom}</span><strong>1/1</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item"><span class="exam-up-distribution__label">Biologie</span><strong>1/1</strong></div>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<div class="exam-up-distribution__item exam-up-distribution__item--other"><span class="exam-up-distribution__label">Autres</span><strong>0</strong></div>',
             html=True,
         )
 

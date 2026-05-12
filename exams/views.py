@@ -482,10 +482,7 @@ def build_up_distribution(exam: Examen, total_required: int, surveillances):
     other_count = 0
     for surveillance in surveillances:
         surveillant = surveillance.surveillant
-        if (
-            surveillant.role == RoleUtilisateur.ENSEIGNANT
-            and surveillant.up_id in expected_up_ids
-        ):
+        if surveillant.up_id in expected_up_ids:
             current_counts[surveillant.up_id] += 1
         else:
             other_count += 1

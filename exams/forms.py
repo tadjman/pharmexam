@@ -59,6 +59,9 @@ class ExamForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.is_creation = self.instance._state.adding
         self.up_coefficient_groups = []
+        self.selected_ue_id = ""
+        self.has_selected_up_group = False
+        self.default_up = UP.get_default_up()
 
         for field in self.fields.values():
             field.widget.attrs.setdefault("class", "input")
@@ -93,6 +96,7 @@ class ExamForm(forms.ModelForm):
         selected_ue_id = self.data.get("ue") or self.initial.get("ue")
         if not selected_ue_id and self.instance.pk:
             selected_ue_id = str(self.instance.ue_id)
+        self.selected_ue_id = str(selected_ue_id) if selected_ue_id else ""
 
         existing_coefficients = {}
         if self.instance.pk:
@@ -103,7 +107,7 @@ class ExamForm(forms.ModelForm):
 
         for ue in self.fields["ue"].queryset:
             entries = []
-            for up in ue.ups.exclude(nom=DEFAULT_UP_NAME).order_by("nom"):
+            for up in self._get_coefficient_ups_for_ue(ue):
                 field_name = self._build_up_coefficient_field_name(ue.pk, up.pk)
                 self.fields[field_name] = forms.IntegerField(
                     required=False,
@@ -119,11 +123,15 @@ class ExamForm(forms.ModelForm):
                         "field": self[field_name],
                     }
                 )
+            is_selected = str(ue.pk) == self.selected_ue_id
+            if is_selected:
+                self.has_selected_up_group = True
             self.up_coefficient_groups.append(
                 {
                     "ue": ue,
                     "ue_id": str(ue.pk),
                     "entries": entries,
+                    "is_selected": is_selected,
                 }
             )
 
@@ -131,13 +139,17 @@ class ExamForm(forms.ModelForm):
     def _build_up_coefficient_field_name(ue_id, up_id):
         return f"up_coefficient__{ue_id}__{up_id}"
 
+    def _get_coefficient_ups_for_ue(self, ue):
+        specific_ups = list(ue.ups.exclude(pk=self.default_up.pk).order_by("nom"))
+        return specific_ups + [self.default_up]
+
     def save(self, commit=True):
         exam = super().save(commit=commit)
         if not commit:
             return exam
 
         selected_ue = exam.ue
-        relevant_ups = list(selected_ue.ups.exclude(nom=DEFAULT_UP_NAME).order_by("nom"))
+        relevant_ups = self._get_coefficient_ups_for_ue(selected_ue)
         relevant_up_ids = {up.pk for up in relevant_ups}
 
         ExamenUPCoefficient.objects.filter(examen=exam).exclude(up_id__in=relevant_up_ids).delete()
