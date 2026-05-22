@@ -419,6 +419,29 @@ class SurveillanceCompletionFlowTests(TestCase):
             ).exists()
         )
 
+    def test_admin_can_register_existing_user_from_search_selection(self):
+        existing = User.objects.create_user(
+            username="luc.martin",
+            password="pass",
+            email="luc.martin@example.com",
+            first_name="Luc",
+            last_name="Martin",
+            role=RoleUtilisateur.MEMBRE_POOL,
+        )
+        response = self.client.post(
+            reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]),
+            {
+                "selected_user": str(existing.pk),
+                "selected_user_query": "Luc MARTIN",
+                "email": "",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            Surveillance.objects.filter(affectation_salle=self.affectation, surveillant=existing).exists()
+        )
+
     def test_admin_new_teacher_requires_up_selection(self):
         response = self.client.post(
             reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]),
@@ -435,9 +458,11 @@ class SurveillanceCompletionFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Sélectionnez l&#x27;UP d&#x27;appartenance pour cet enseignant.")
 
-    def test_admin_registration_form_only_requests_email_before_new_user_step(self):
+    def test_admin_registration_form_displays_search_and_email_before_new_user_step(self):
         response = self.client.get(reverse("exams:exam_room_register", args=[self.exam.pk, self.affectation.pk]))
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="selected_user_query"')
+        self.assertContains(response, 'name="selected_user"')
         self.assertContains(response, 'name="email"')
         self.assertNotContains(response, 'name="first_name"')
         self.assertNotContains(response, 'name="last_name"')

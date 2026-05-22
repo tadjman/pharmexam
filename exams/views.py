@@ -942,8 +942,11 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
         form = self._build_registration_form(request, self.affectation)
         if form.is_valid():
             if self.is_admin:
-                email = form.cleaned_data["email"].strip().lower()
-                existing_user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
+                selected_user = form.cleaned_data.get("selected_user")
+                email = form.cleaned_data.get("email", "").strip().lower()
+                existing_user = selected_user
+                if existing_user is None and email:
+                    existing_user = User.objects.filter(email__iexact=email).order_by("date_joined", "username").first()
                 if existing_user is None:
                     confirmation_form = AdminNewUserRoleChoiceForm(
                         initial={
@@ -959,7 +962,10 @@ class ExamRoomRegisterView(ExamCompletionMixin, View):
             created = False
             temporary_password = None
             if self.is_admin:
-                user, created, temporary_password = self._get_or_create_user_from_registration(form)
+                if form.cleaned_data.get("selected_user") is not None:
+                    user = form.cleaned_data["selected_user"]
+                else:
+                    user, created, temporary_password = self._get_or_create_user_from_registration(form)
 
             previous_states = {"general": [], "room": []}
             try:

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Inscription — Pharmexam{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-page__header">
+      <div>
+        <h1 class="page-title">Inscription</h1>
+        <p class="page-subtitle">Création d’un compte utilisateur.</p>
+      </div>
+      <a class="btn btn--outline" href="{% url 'login' %}">Retour</a>
+    </div>
+
+    <div class="card form-card login-card">
+      <form method="post" class="form-layout" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="flash flash--error">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label class="form-label">Nom</label>
+            {{ form.last_name }}
+            {% if form.last_name.errors %}<div class="form-error">{{ form.last_name.errors }}</div>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Prénom</label>
+            {{ form.first_name }}
+            {% if form.first_name.errors %}<div class="form-error">{{ form.first_name.errors }}</div>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Adresse mail</label>
+            {{ form.email }}
+            {% if form.email.errors %}<div class="form-error">{{ form.email.errors }}</div>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Mot de passe</label>
+            {{ form.password1 }}
+            {% if form.password1.errors %}<div class="form-error">{{ form.password1.errors }}</div>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Confirmation du mot de passe</label>
+            {{ form.password2 }}
+            {% if form.password2.errors %}<div class="form-error">{{ form.password2.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn btn--primary" type="submit">Créer le compte</button>
+          <a class="btn btn--outline" href="{% url 'login' %}">Retour</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

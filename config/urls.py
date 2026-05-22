@@ -5,6 +5,7 @@ from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_required
 from django.urls import include, path
 
+from accounts.views import SignUpView
 from .views import TableauDeBordView
 
 admin.site.site_header = "Administration Pharmexam"
@@ -25,6 +26,12 @@ urlpatterns = [
         "login/",
         auth_views.LoginView.as_view(template_name="registration/login.html"),
         name="login",
+    ),
+
+    path(
+        "inscription/",
+        SignUpView.as_view(),
+        name="signup",
     ),
 
     path(

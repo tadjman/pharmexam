@@ -22,6 +22,7 @@ class RequireActiveYearMiddleware:
             allowed_prefixes = (
                 "/admin/",
                 "/login/",
+                "/inscription/",
                 "/logout/",
                 "/annees/",  # pages années
                 "/static/",

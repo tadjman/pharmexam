@@ -2,7 +2,7 @@ from django import forms
 from django.db.models import Q
 
 from academics.models import DEFAULT_UP_NAME, Formation, UE, UP
-from accounts.models import RoleUtilisateur
+from accounts.models import RoleUtilisateur, User
 from rooms.models import AffectationSalle, Salle
 
 from .models import Examen, ExamenUPCoefficient, SessionExamen
@@ -232,9 +232,13 @@ class SelfRoomRegistrationForm(forms.Form):
 
 
 class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
-    email = forms.EmailField()
+    selected_user = forms.ModelChoiceField(queryset=User.objects.none(), required=False, widget=forms.HiddenInput())
+    selected_user_query = forms.CharField(required=False)
+    email = forms.EmailField(required=False)
 
     field_order = [
+        "selected_user",
+        "selected_user_query",
         "email",
         "is_responsable_general",
         "is_responsable_salle",
@@ -242,11 +246,41 @@ class AdminRoomRegistrationForm(SelfRoomRegistrationForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        users_qs = User.objects.filter(is_active=True).order_by("last_name", "first_name", "username")
+        self.fields["selected_user"].queryset = users_qs
+        self.fields["selected_user_query"].widget.attrs.setdefault("class", "input")
+        self.fields["selected_user_query"].widget.attrs.setdefault(
+            "placeholder",
+            "Entrez un nom",
+        )
+        self.fields["selected_user_query"].widget.attrs.setdefault("autocomplete", "off")
         self.fields["email"].widget.attrs.setdefault("class", "input")
         self.fields["email"].widget.attrs.setdefault(
             "placeholder",
             "nouvel.utilisateur@example.com",
         )
+        self.user_search_options = [
+            {
+                "id": str(user.pk),
+                "label": user.display_full_name,
+                "first_name": user.display_first_name.lower(),
+                "last_name": user.display_last_name.lower(),
+                "full_name": user.display_full_name.lower(),
+            }
+            for user in users_qs
+        ]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        selected_user = cleaned_data.get("selected_user")
+        email = (cleaned_data.get("email") or "").strip().lower()
+        cleaned_data["email"] = email
+        if not selected_user and not email:
+            self.add_error(
+                "selected_user_query",
+                "Sélectionnez un utilisateur existant ou renseignez une adresse email.",
+            )
+        return cleaned_data
 
 
 class AdminNewUserRoleChoiceForm(forms.Form):

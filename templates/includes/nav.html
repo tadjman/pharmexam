@@ -19,6 +19,9 @@
   {% else %}
     <div class="nav__spacer" aria-hidden="true"></div>
     <div class="nav__group"></div>
-    <a class="nav__item nav__item--auth" href="{% url 'login' %}">Connexion</a>
+    <div class="nav__auth">
+      <a class="nav__item nav__item--auth" href="{% url 'login' %}">Connexion</a>
+      <a class="nav__item nav__item--auth" href="{% url 'signup' %}">Inscription</a>
+    </div>
   {% endif %}
 </nav>

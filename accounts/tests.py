@@ -28,7 +28,44 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Connexion")
         self.assertContains(response, "Nom d’utilisateur")
+        self.assertContains(response, "S'inscrire")
         self.assertContains(response, '/media/favicon.png')
+
+    def test_signup_page_renders(self):
+        response = self.client.get(reverse("signup"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Inscription")
+        self.assertContains(response, "Nom")
+        self.assertContains(response, "Prénom")
+        self.assertContains(response, "Adresse mail")
+        self.assertContains(response, "Mot de passe")
+
+    def test_valid_signup_creates_member_pool_user_and_logs_in(self):
+        year = AnneeUniversitaire.objects.create(
+            nom="2038/2039",
+            date_debut="2038-09-01",
+            date_fin="2039-07-31",
+            is_active=True,
+        )
+        response = self.client.post(
+            reverse("signup"),
+            {
+                "last_name": "Dupont",
+                "first_name": "Alice",
+                "email": "ALICE.DUPONT@EXAMPLE.COM",
+                "password1": "MotDePasseTresSolide123!",
+                "password2": "MotDePasseTresSolide123!",
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        created_user = User.objects.get(email="alice.dupont@example.com")
+        self.assertEqual(created_user.username, "alice.dupont")
+        self.assertEqual(created_user.role, RoleUtilisateur.MEMBRE_POOL)
+        self.assertEqual(created_user.up.nom, "Autre")
+        self.assertEqual(self.client.session.get("_auth_user_id"), str(created_user.pk))
+        self.assertContains(response, "Compte créé.")
+        self.assertContains(response, f"Tableau de bord {year.nom}")
 
     def test_valid_login_redirects_to_dashboard(self):
         response = self.client.post(

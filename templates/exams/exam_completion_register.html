@@ -28,10 +28,36 @@
           {% if form.non_field_errors %}<div class="flash flash--error">{{ form.non_field_errors }}</div>{% endif %}
 
           {% if is_admin_user %}
+            <div class="user-search" data-user-search>
+              {{ form.selected_user }}
+              <label class="form-label">Chercher un surveillant</label>
+              {{ form.selected_user_query }}
+              {% if form.selected_user_query.errors %}<div class="exam-error">{{ form.selected_user_query.errors }}</div>{% endif %}
+              <div class="user-search__results" data-user-search-results hidden>
+                {% for option in form.user_search_options %}
+                  <button
+                    type="button"
+                    class="user-search__option"
+                    data-user-search-option
+                    data-user-id="{{ option.id }}"
+                    data-user-label="{{ option.label }}"
+                    data-first-name="{{ option.first_name }}"
+                    data-last-name="{{ option.last_name }}"
+                    data-full-name="{{ option.full_name }}"
+                    hidden
+                  >
+                    {{ option.label }}
+                  </button>
+                {% endfor %}
+              </div>
+              <p class="form-help">Tapez le début du prénom ou du nom, puis sélectionnez un surveillant existant.</p>
+            </div>
+
             <div>
-              <label class="exam-label">Adresse email</label>
+              <label class="form-label">Adresse email</label>
               {{ form.email }}
               {% if form.email.errors %}<div class="exam-error">{{ form.email.errors }}</div>{% endif %}
+              <p class="form-help">Renseignez une adresse email si l’utilisateur n’existe pas encore ou si vous souhaitez le retrouver directement par email.</p>
             </div>
           {% endif %}
 
@@ -65,4 +91,95 @@
       {% endif %}
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  {% if is_admin_user %}
+    <script>
+      (function () {
+        const root = document.querySelector('[data-user-search]');
+        if (!root) {
+          return;
+        }
+
+        const hiddenInput = root.querySelector('input[name="selected_user"]');
+        const queryInput = root.querySelector('input[name="selected_user_query"]');
+        const results = root.querySelector('[data-user-search-results]');
+        const options = Array.from(root.querySelectorAll('[data-user-search-option]'));
+        if (!hiddenInput || !queryInput || !results || !options.length) {
+          return;
+        }
+
+        let selectedLabel = queryInput.value.trim();
+
+        const hideResults = () => {
+          results.hidden = true;
+          results.style.display = 'none';
+        };
+
+        const normalize = (value) => (value || '').trim().toLowerCase();
+
+        const syncResults = () => {
+          const query = normalize(queryInput.value);
+          if (!query) {
+            options.forEach((option) => {
+              option.hidden = true;
+              option.style.display = 'none';
+            });
+            hideResults();
+            return;
+          }
+
+          let visibleCount = 0;
+          options.forEach((option) => {
+            const isMatch =
+              option.dataset.firstName.startsWith(query) ||
+              option.dataset.lastName.startsWith(query) ||
+              option.dataset.fullName.startsWith(query);
+            option.hidden = !isMatch;
+            option.style.display = isMatch ? '' : 'none';
+            if (isMatch) {
+              visibleCount += 1;
+            }
+          });
+
+          results.hidden = visibleCount === 0;
+          results.style.display = visibleCount === 0 ? 'none' : '';
+        };
+
+        queryInput.addEventListener('input', () => {
+          if (queryInput.value.trim() !== selectedLabel) {
+            hiddenInput.value = '';
+            selectedLabel = '';
+          }
+          syncResults();
+        });
+
+        queryInput.addEventListener('focus', syncResults);
+        queryInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') {
+            hideResults();
+          }
+        });
+
+        options.forEach((option) => {
+          option.addEventListener('click', () => {
+            hiddenInput.value = option.dataset.userId;
+            queryInput.value = option.dataset.userLabel;
+            selectedLabel = option.dataset.userLabel;
+            hideResults();
+          });
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!root.contains(event.target)) {
+            hideResults();
+          }
+        });
+
+        hideResults();
+      })();
+    </script>
+  {% endif %}
 {% endblock %}
